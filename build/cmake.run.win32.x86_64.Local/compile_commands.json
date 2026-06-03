@@ -1,8 +1,0 @@
-[
-{
-  "directory": "D:/libmath/build/cmake.run.win32.x86_64.Local",
-  "command": "C:\\msys64\\ucrt64\\bin\\c++.exe -Dmath_EXPORTS @CMakeFiles/math.dir/includes_CXX.rsp -O3 -DNDEBUG -std=gnu++11 -g -O0 -o CMakeFiles\\math.dir\\src\\src.cpp.obj -c D:\\libmath\\src\\src.cpp",
-  "file": "D:/libmath/src/src.cpp",
-  "output": "CMakeFiles/math.dir/src/src.cpp.obj"
-}
-]

@@ -1,3 +1,0 @@
-C:\CMake\bin\cmake.exe -E rm -f CMakeFiles\math.dir/objects.a
-C:\msys64\ucrt64\bin\ar.exe qc CMakeFiles\math.dir/objects.a @CMakeFiles\math.dir\objects1.rsp
-C:\msys64\ucrt64\bin\c++.exe -O3 -DNDEBUG -shared -o libmath.dll -Wl,--out-implib,libmath.dll.a -Wl,--major-image-version,0,--minor-image-version,0 -Wl,--whole-archive CMakeFiles\math.dir/objects.a -Wl,--no-whole-archive @CMakeFiles\math.dir\linkLibs.rsp
