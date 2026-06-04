@@ -5,7 +5,7 @@
 #include <quadmath.h>
 
 /**
- * 算子及函数族
+ * 算子及基本函数族
  */
 namespace math
 {
@@ -22,6 +22,48 @@ template<>
 inline __float128 sqrt(__float128 value)
 {
 	return sqrtq(value);
+}
+
+/**
+ * 绝对值
+ */
+template<typename _T>
+inline _T abs(_T value)
+{
+	return (_T)std::abs(value);
+}
+
+template<>
+inline __float128 abs(__float128 value)
+{
+	return fabsq(value);
+}
+
+/**
+ * 最大、最小值
+ */
+template<typename _T>
+inline _T max(_T value1, _T value2)
+{
+	return (_T)std::max(value1, value2);
+}
+
+template<>
+inline __float128 max(__float128 value1, __float128 value2)
+{
+	return fmaxq(value1, value2);
+}
+
+template<typename _T>
+inline _T min(_T value1, _T value2)
+{
+	return (_T)std::min(value1, value2);
+}
+
+template<>
+inline __float128 min(__float128 value1, __float128 value2)
+{
+	return fminq(value1, value2);
 }
 
 /**
@@ -171,13 +213,32 @@ inline _T identity()
 template<typename _T>
 struct __basis_impl
 {
-	static _T value(size_t i);
+	template<typename ..._Indices>
+	static _T value(_Indices ... indices)
+	{
+		static_assert(false, "basis not defined");
+	}
 };
 
-template<typename _T>
-inline _T basis(size_t i)
+template<typename _T, typename ..._Indices>
+inline _T basis(_Indices ... indices)
 {
-	return __basis_impl<_T>::value(i);
+	return __basis_impl<_T>::value(indices...);
+}
+
+/**
+ * 可带容差地判断是否是零元
+ */
+template<typename _T, typename ..._Args>
+inline bool is_zero(_T value, _Args ... args)
+{
+	return value == 0;
+}
+
+template<typename _T>
+inline bool is_zero(_T value, _T eps)
+{
+	return math::abs(value) < eps;
 }
 
 }

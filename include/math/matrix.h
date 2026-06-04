@@ -52,16 +52,100 @@ public:
 	{\
 		return elem[row];\
 	}\
-	inline math::vector<column, _T> row(int row)\
+	inline math::vector<column, elem_type> row(size_t row)\
 	{\
 		return elem[row];\
 	}
 	__def_matrix_op_row_vec__(_T, _Column)
 
 	/**
-	 * 提取列向量
+	 * 找列主元。
+	 * 如果找到则返回行索引，未找到（全0）则返回row
 	 */
-	inline math::vector<_Row, _T> column(int column)
+#define __def_matrix_op_partial_pivot_row__(elem_type, row)\
+	size_t partial_pivot_row(size_t i, size_t j, elem_type eps)\
+	{\
+		size_t pivot_row = row;\
+		elem_type max_abs = elem_type(0);\
+		for(size_t r = i; r < row; ++r)\
+		{\
+			elem_type abs_val = math::abs(elem[r][j]);\
+			if(abs_val > max_abs)\
+			{\
+				max_abs = abs_val;\
+				pivot_row = r;\
+			}\
+		}\
+		if(math::is_zero(max_abs, eps))\
+			return row;\
+		else\
+			return pivot_row;\
+	}
+	__def_matrix_op_partial_pivot_row__(_T, _Row)
+
+	/**
+	 * 找全主元。
+	 * 如果找到则返回行索引和列索引，未找到则返回row。
+	 */
+#define __def_matrix_op_complete_pivot_coord__(elem_type, row, column)\
+	vector2<size_t> complete_pivot_coord(size_t i, size_t j, elem_type eps)\
+	{\
+		vector2<size_t> pivot_coord = {row, column};\
+		elem_type max_abs = elem_type(0);\
+		for(size_t r = i; r < row; ++r)\
+		{\
+			for(size_t c = j; c < column; ++c)\
+			{\
+				elem_type abs_val = math::abs(elem[r][c]);\
+				if(abs_val > max_abs)\
+				{\
+					max_abs = abs_val;\
+					pivot_coord[0] = r;\
+					pivot_coord[1] = c;\
+				}\
+			}\
+		}\
+		if(math::is_zero(max_abs, eps))\
+			return {row, column};\
+		else\
+			return pivot_coord;\
+	}
+	__def_matrix_op_complete_pivot_coord__(_T, _Row, _Column)
+
+	/**
+	 * 交换本矩阵的行
+	 */
+#define __def_matrix_op_swap_row__(elem_type, row, column)\
+	inline matrix<row, column, elem_type> swap_row(size_t row1, size_t row2)\
+	{\
+		vector<column, elem_type> temp = elem[row1];\
+		elem[row1] = elem[row2];\
+		elem[row2] = temp;\
+		return *this;\
+	}
+	__def_matrix_op_swap_row__(_T, _Row, _Column)
+
+	/**
+	 * 交换本矩阵的列
+	 */
+#define __def_matrix_op_swap_column__(elem_type, row, column)\
+	inline matrix<row, column, elem_type> swap_column(size_t column1, size_t column2)\
+	{\
+		for(size_t i = 0; i < row; ++i)\
+		{\
+			elem_type temp = elem[i][column1];\
+			elem[i][column1] = elem[i][column2];\
+			elem[i][column2] = temp;\
+		}\
+		return *this;\
+	}
+			__def_matrix_op_swap_column__(_T, _Row, _Column)
+
+			/**
+			 * 提取列向量
+			 */
+			inline math::vector<_Row,
+	_T> column(size_t column)
 	{
 		vector<_Row, _T> row_vec;
 		for(size_t i = 0; i < _Row; ++i)
@@ -175,7 +259,7 @@ public:
 			{
 				oss << elem[i][j];
 				if(j < _Column - 1)
-					oss << ' ';
+					oss << '\t';
 			}
 			oss << ']';
 			if(i < _Row - 1)
@@ -196,7 +280,137 @@ inline std::ostream& operator<<(std::ostream& os, const matrix<_Row, _Column, _T
 template<typename _T1, size_t _Row, size_t _Column, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
 inline matrix<_Row, _Column, _Result> operator*(_T1 t, const matrix<_Row, _Column, _T2>& mat)
 {
-	return mat * t;
+	return mat.template operator*<_T1, _Result>(t);
+}
+
+//基
+template<size_t _Row, size_t _Column, typename _T>
+struct __basis_impl<matrix<_Row, _Column, _T> >
+{
+	static matrix<_Row, _Column, _T> value(size_t i, size_t j)
+	{
+		matrix<_Row, _Column, _T> basis = matrix<_Row, _Column, _T>::zero();
+		basis[i][j] = 1;
+		return basis;
+	}
+};
+
+/**
+ * Row Echelon Form，即变换为行阶梯形
+ * 列主元高斯消元法计算
+ */
+template<size_t _Row, size_t _Column, typename _T, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
+matrix<_Row, _Column, _Result> ref(const matrix<_Row, _Column, _T>& mat, _T eps, size_t* mat_rank = nullptr, size_t* swap_count = nullptr)
+{
+	if(swap_count)
+		*swap_count = 0;
+	size_t rank = 0; //当前有主元的行数，即秩
+	matrix<_Row, _Column, _Result> ref = mat;
+	for(size_t current_column = 0; current_column < _Column && rank < _Row; ++current_column)
+	{
+		//找列主元
+		size_t pivot_row = ref.partial_pivot_row(rank, current_column, eps);
+		if(pivot_row < _Row)
+		{
+			if(pivot_row != rank)
+			{
+				ref.swap_row(rank, pivot_row); //当前主元所在行不同则交换当前行与主元行
+				if(swap_count)
+					++*swap_count;
+			}
+			_T pivot_val = ref[rank][current_column];
+			for(size_t r = rank + 1; r < _Row; ++r)
+			{
+				//消去左下方元素得到上三角矩阵
+				_T factor = ref[r][current_column] / pivot_val;
+				for(size_t c = current_column; c < _Column; ++c)
+				{
+					ref[r][c] -= (_Result)(factor * ref[current_column][c]);
+					ref[r][current_column] = _Result(0); //直接置零避免浮点数误差
+				}
+			}
+			++rank; //找到主元才增加行号
+		}
+	}
+	if(mat_rank)
+		*mat_rank = rank;
+	return ref;
+}
+
+/**
+ * 秩
+ * 相对于ref()的优化
+ */
+template<size_t _Row, size_t _Column, typename _T, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
+size_t rank(const matrix<_Row, _Column, _T>& mat, _T eps)
+{
+	matrix<_Row, _Column, _Result> ref = mat;
+	size_t rank = 0;
+	for(size_t current_column = 0; current_column < _Column; ++current_column)
+	{
+		if(rank >= _Row)
+			break; //满秩直接返回
+		size_t pivot_row = ref.partial_pivot_row(rank, current_column, eps);
+		if(pivot_row >= _Row)
+			continue;  //该列全零，跳过
+		if(pivot_row != rank)
+		{
+			ref.swap_row(rank, pivot_row);
+		}
+		_T pivot_val = ref[rank][current_column];
+		for(size_t r = rank + 1; r < _Row; ++r)
+		{
+			_T factor = ref[r][current_column] / pivot_val;
+			for(size_t c = current_column; c < _Column; ++c)
+			{
+				ref[r][c] -= factor * ref[rank][c];
+			}
+		}
+		++rank;
+	}
+	return rank;
+}
+
+/**
+ * 行列式
+ * 相对于ref()的优化
+ */
+template<size_t _Order, typename _T, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
+_Result det(const matrix<_Order, _Order, _T>& mat, _T eps)
+{
+	matrix<_Order, _Order, _T> temp = mat;
+	_Result det = _Result(1);
+	for(size_t i = 0; i < _Order; ++i)
+	{
+		//找列主元
+		size_t pivot_row = temp.partial_pivot_row(i, i, eps);
+		if(pivot_row < _Order)
+		{
+			if(pivot_row != i)
+			{
+				temp.swap_row(i, pivot_row); //当前主元所在行不同则交换当前行与主元行
+				det = -det; //交换一次行列则行列式取反
+			}
+			_T pivot_val = temp[i][i];
+			for(size_t r = i + 1; r < _Order; ++r)
+			{
+				//消去左下方元素得到上三角矩阵
+				_T factor = temp[r][i] / pivot_val;
+				for(size_t c = i; c < _Order; ++c)
+				{
+					temp[r][c] -= factor * temp[i][c]; //由于只有对角线元素参与最终计算，下三角的微小误差不需要再置零
+				}
+			}
+			//累乘对角线
+			det *= temp[i][i];
+		}
+		else
+		{
+			//任意一列没找到主元则行列式恒等于0
+			return _Result(0);
+		}
+	}
+	return det;
 }
 
 /**
@@ -253,6 +467,25 @@ public:
 	__def_matrix_op_cast_vec_ptr__(_T, 2)
 
 	__def_matrix_op_row_vec__(_T, 2)
+
+	__def_matrix_op_partial_pivot_row__(_T, 2)
+
+	__def_matrix_op_complete_pivot_coord__(_T, 2, 2)
+
+	__def_matrix_op_swap_row__(_T, 2, 2)
+
+	//交换列
+			inline matrix<2,
+	2, _T>& swap_column(size_t column1, size_t column2)
+	{
+		_T temp = elem[0][column1];
+		elem[0][column1] = elem[0][column2];
+		elem[0][column2] = temp;
+		temp = elem[1][column1];
+		elem[1][column1] = elem[1][column2];
+		elem[1][column2] = temp;
+		return *this;
+	}
 
 	template<typename _T2>
 	inline operator matrix<2, 2, _T2>()
@@ -334,7 +567,7 @@ public:
 		return tplmp::cast<matrix<2, 2, _Result> >(m_elem);
 	}
 
-	inline vector<2, _T> column(int column) const
+	inline vector<2, _T> column(size_t column) const
 	{
 		_T v_elem[] =
 				{
@@ -366,8 +599,8 @@ public:
 	inline operator std::string() const
 	{
 		std::ostringstream oss;
-		oss << '[' << elem[0][0] << ' ' << elem[0][1] << "]\n"
-				<< '[' << elem[1][0] << ' ' << elem[1][1] << ']';
+		oss << '[' << elem[0][0] << '\t' << elem[0][1] << "]\n"
+				<< '[' << elem[1][0] << '\t' << elem[1][1] << ']';
 		return oss.str();
 	}
 };
@@ -421,6 +654,29 @@ public:
 	__def_matrix_op_cast_vec_ptr__(_T, 3)
 
 	__def_matrix_op_row_vec__(_T, 3)
+
+	__def_matrix_op_partial_pivot_row__(_T, 3)
+
+	__def_matrix_op_complete_pivot_coord__(_T, 3, 3)
+
+	//交换行
+	__def_matrix_op_swap_row__(_T, 3, 3)
+
+	//交换列
+			inline matrix<3,
+	3, _T>& swap_column(size_t column1, size_t column2)
+	{
+		_T temp = elem[0][column1];
+		elem[0][column1] = elem[0][column2];
+		elem[0][column2] = temp;
+		temp = elem[1][column1];
+		elem[1][column1] = elem[1][column2];
+		elem[1][column2] = temp;
+		temp = elem[2][column1];
+		elem[2][column1] = elem[2][column2];
+		elem[2][column2] = temp;
+		return *this;
+	}
 
 	template<typename _T2>
 	inline operator matrix<3, 3, _T2>()
@@ -514,7 +770,7 @@ public:
 		return tplmp::cast<matrix<3, 3, _Result> >(m_elem);
 	}
 
-	inline vector<3, _T> column(int column)
+	inline vector<3, _T> column(size_t column)
 	{
 		_T v_elem[] =
 				{
@@ -548,9 +804,9 @@ public:
 	inline operator std::string() const
 	{
 		std::ostringstream oss;
-		oss << '[' << elem[0][0] << ' ' << elem[0][1] << ' ' << elem[0][2] << "]\n"
-				<< '[' << elem[1][0] << ' ' << elem[1][1] << ' ' << elem[1][2] << "]\n"
-				<< '[' << elem[2][0] << ' ' << elem[2][1] << ' ' << elem[2][2] << ']';
+		oss << '[' << elem[0][0] << '\t' << elem[0][1] << '\t' << elem[0][2] << "]\n"
+				<< '[' << elem[1][0] << '\t' << elem[1][1] << '\t' << elem[1][2] << "]\n"
+				<< '[' << elem[2][0] << '\t' << elem[2][1] << '\t' << elem[2][2] << ']';
 		return oss.str();
 	}
 };
@@ -608,6 +864,32 @@ public:
 	__def_matrix_op_cast_vec_ptr__(_T, 4)
 
 	__def_matrix_op_row_vec__(_T, 4)
+
+	__def_matrix_op_partial_pivot_row__(_T, 4)
+
+	__def_matrix_op_complete_pivot_coord__(_T, 4, 4)
+
+	//交换行
+	__def_matrix_op_swap_row__(_T, 4, 4)
+
+	//交换列
+			inline matrix<4,
+	4, _T>& swap_column(size_t column1, size_t column2)
+	{
+		_T temp = elem[0][column1];
+		elem[0][column1] = elem[0][column2];
+		elem[0][column2] = temp;
+		temp = elem[1][column1];
+		elem[1][column1] = elem[1][column2];
+		elem[1][column2] = temp;
+		temp = elem[2][column1];
+		elem[2][column1] = elem[2][column2];
+		elem[2][column2] = temp;
+		temp = elem[3][column1];
+		elem[3][column1] = elem[3][column2];
+		elem[3][column2] = temp;
+		return *this;
+	}
 
 	template<typename _T2>
 	inline operator matrix<4, 4, _T2>()
@@ -715,7 +997,7 @@ public:
 		return tplmp::cast<matrix<4, 4, _Result> >(m_elem);
 	}
 
-	inline vector<4, _T> column(int column) const
+	inline vector<4, _T> column(size_t column) const
 	{
 		_T v_elem[] =
 				{
@@ -751,10 +1033,10 @@ public:
 	inline operator std::string() const
 	{
 		std::ostringstream oss;
-		oss << '[' << elem[0][0] << ' ' << elem[0][1] << ' ' << elem[0][2] << ' ' << elem[0][3] << "]\n"
-				<< '[' << elem[1][0] << ' ' << elem[1][1] << ' ' << elem[1][2] << ' ' << elem[1][3] << "]\n"
-				<< '[' << elem[2][0] << ' ' << elem[2][1] << ' ' << elem[2][2] << ' ' << elem[2][3] << "]\n"
-				<< '[' << elem[3][0] << ' ' << elem[3][1] << ' ' << elem[3][2] << ' ' << elem[3][3] << ']';
+		oss << '[' << elem[0][0] << '\t' << elem[0][1] << '\t' << elem[0][2] << '\t' << elem[0][3] << "]\n"
+				<< '[' << elem[1][0] << '\t' << elem[1][1] << '\t' << elem[1][2] << '\t' << elem[1][3] << "]\n"
+				<< '[' << elem[2][0] << '\t' << elem[2][1] << '\t' << elem[2][2] << '\t' << elem[2][3] << "]\n"
+				<< '[' << elem[3][0] << '\t' << elem[3][1] << '\t' << elem[3][2] << '\t' << elem[3][3] << ']';
 		return oss.str();
 	}
 };
@@ -817,5 +1099,9 @@ using matrix4x4f = matrix4x4<float>;
 using matrix2x2d = matrix2x2<double>;
 using matrix3x3d = matrix3x3<double>;
 using matrix4x4d = matrix4x4<double>;
+
+using matrix2x2q = matrix2x2<__float128>;
+using matrix3x3q = matrix3x3<__float128>;
+using matrix4x4q = matrix4x4<__float128>;
 }
 #endif//_MATH_MATRIX

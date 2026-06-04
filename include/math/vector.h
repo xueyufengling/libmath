@@ -35,11 +35,11 @@ public:
 	 * 坐标
 	 */
 #define __def_vector_op_coord__(coord_type)\
-	inline coord_type& operator[](int i)\
+	inline coord_type& operator[](size_t i)\
 	{\
 		return coord[i];\
 	}\
-	inline const coord_type& operator[](int i) const\
+	inline const coord_type& operator[](size_t i) const\
 	{\
 		return coord[i];\
 	}
@@ -74,7 +74,7 @@ __def_vector_op_unit__	(_T, _Dim)
 	inline operator vector<_Dim,_T2>() const
 	{
 		vector<_Dim, _T2> cast_result;
-		for(int i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < _Dim; ++i)
 		cast_result[i] = (_T2)coord[i];
 		return cast_result;
 	}
@@ -85,7 +85,7 @@ __def_vector_op_unit__	(_T, _Dim)
 	template<typename _T2>
 	inline vector<_Dim, _T>& operator=(const vector<_Dim, _T2>& vec)
 	{
-		for(int i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < _Dim; ++i)
 		coord[i] = (_T)(vec.coord[i]);
 		return *this;
 	}
@@ -97,7 +97,7 @@ __def_vector_op_unit__	(_T, _Dim)
 	inline vector<_Dim, _Result> operator+(const vector<_Dim, _T2>& vec) const
 	{
 		vector<_Dim, _Result> add_result;
-		for(int i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < _Dim; ++i)
 		add_result[i] = (_Result)(coord[i] + vec.coord[i]);
 		return add_result;
 	}
@@ -109,7 +109,7 @@ __def_vector_op_unit__	(_T, _Dim)
 	inline vector<_Dim, _Result> operator-(const vector<_Dim, _T2>& vec) const
 	{
 		vector<_Dim, _Result> sub_result;
-		for(int i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < _Dim; ++i)
 		sub_result[i] = (_Result)(coord[i] - vec.coord[i]);
 		return sub_result;
 	}
@@ -120,7 +120,7 @@ __def_vector_op_unit__	(_T, _Dim)
 	inline vector<_Dim, _T> operator-() const
 	{
 		vector<_Dim, _T> inv;
-		for(int i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < _Dim; ++i)
 		inv[i] = -coord[i];
 		return inv;
 	}
@@ -194,10 +194,10 @@ inline std::ostream& operator<<(std::ostream& os, const vector<_Dim, _T>& vec)
 }
 
 //交换律
-template<typename _T1, size_t _Dim, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
+template<typename _T1, size_t _Dim, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
 inline vector<_Dim, _Result> operator*(_T1 t, const vector<_Dim, _T2>& vec)
 {
-	return vec * t;
+	return vec.template operator*<_T1, _Result>(t);
 }
 
 //基向量
@@ -212,7 +212,7 @@ struct __basis_impl<vector<_Dim, _T> >
 	}
 };
 
-// 2维向量特化
+//2维向量特化
 template<typename _T>
 class vector<2, _T>
 {
@@ -304,7 +304,7 @@ __def_vector_op_unit__	(_T, 2)
 	}
 };
 
-// 3维向量特化
+//3维向量特化
 template<typename _T>
 class vector<3, _T>
 {
@@ -399,7 +399,7 @@ __def_vector_op_unit__	(_T, 3)
 	}
 };
 
-// 4维向量特化
+//4维向量特化
 template<typename _T>
 class vector<4, _T>
 {
@@ -510,6 +510,9 @@ using vector2d = vector2<double>;
 using vector3d = vector3<double>;
 using vector4d = vector4<double>;
 
+using vector2q = vector2<__float128>;
+using vector3q = vector3<__float128>;
+using vector4q = vector4<__float128>;
 }
 
 #endif//_MATH_VECTOR
