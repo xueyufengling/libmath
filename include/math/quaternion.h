@@ -1,9 +1,9 @@
 #ifndef _MATH_QUATERNION
 #define _MATH_QUATERNION
 
-#include <tplmp/tplmp.h>
+#include <tplmp/base.h>
 
-#include <math/op.h>
+#include <math/elementary_function.h>
 #include <math/vector.h>
 #include <math/matrix.h>
 
