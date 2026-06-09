@@ -31,7 +31,7 @@ public:
 #define __def_vector_op_cast_ptr__(coord_type)\
 	inline operator coord_type*()\
 	{\
-		return (coord_type*)coord;\
+		return coord;\
 	}
 	__def_vector_op_cast_ptr__(_T)
 
@@ -180,20 +180,34 @@ __def_vector_op_unit__	(_T, _Dim)
 	}
 
 	/**
+	 * 按位除法，同哈达玛积
+	 */
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
+	inline vector<_Dim, _Result> operator/(const vector<_Dim, _T2> vec) const
+	{
+		vector<_Dim, _Result> div_result;
+		for(size_t i = 0; i < _Dim; ++i)
+		div_result[i] = (_Result)(coord[i] / vec.coord[i]);
+		return div_result;
+	}
+
+	/**
 	 * 零向量
 	 */
 	inline static vector<_Dim, _T> zero()
 	{
 		vector<_Dim, _T> zero_vec;
-		tplmp::fill_array(zero_vec.coord,_T(0));
+		for(size_t i = 0; i < _Dim; ++i)
+		zero_vec[i]=_T(0);
 		return zero_vec;
 	}
 
 	inline static vector<_Dim, _T> one()
 	{
-		vector<_Dim, _T> zero_vec;
-		tplmp::fill_array(zero_vec.coord,_T(1));
-		return zero_vec;
+		vector<_Dim, _T> one_vec;
+		for(size_t i = 0; i < _Dim; ++i)
+		one_vec[i]=_T(1);
+		return one_vec;
 	}
 
 	inline operator std::string() const
@@ -223,6 +237,15 @@ template<typename _T1, size_t _Dim, typename _T2, typename _Result = decltype(tp
 inline vector<_Dim, _Result> operator*(_T1 t, const vector<_Dim, _T2>& vec)
 {
 	return vec.template operator*<_T1, _Result>(t);
+}
+
+template<size_t _Dim, typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline vector<_Dim, _Result> hadamard(const vector<_Dim, _T1>& vec1, const vector<_Dim, _T2>& vec2)
+{
+	vector<_Dim, _Result> hadamard_result;
+	for(size_t i = 0; i < _Dim; ++i)
+		hadamard_result[i] = vec1[i] * vec2[i];
+	return hadamard_result;
 }
 
 //基向量
@@ -320,6 +343,13 @@ public:
 		{	coord[0] / t};
 	}
 
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
+	inline vector<1, _Result> operator/(const vector<1, _T2> vec) const
+	{
+		return
+		{	coord[0] / vec.coord[0]};
+	}
+
 	inline static vector<1, _T> zero()
 	{
 		return
@@ -339,6 +369,13 @@ public:
 		return oss.str();
 	}
 };
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline vector<1, _Result> hadamard(const vector<1, _T1>& vec1, const vector<1, _T2>& vec2)
+{
+	return
+	{	vec1[0] * vec2[0]};
+}
 
 //2维向量特化
 template<typename _T>
@@ -414,6 +451,16 @@ __def_vector_op_unit__	(_T, 2)
 		{	coord[0] / t, coord[1] / t};
 	}
 
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
+	inline vector<2, _Result> operator/(const vector<2, _T2>& vec) const
+	{
+		return
+		{
+			coord[0] / vec.coord[0],
+			coord[1] / vec.coord[1]
+		};
+	}
+
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
 	inline _Result operator^(const vector<2, _T2>& vec) const
 	{
@@ -439,6 +486,14 @@ __def_vector_op_unit__	(_T, 2)
 		return oss.str();
 	}
 };
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline vector<2, _Result> hadamard(const vector<2, _T1>& vec1, const vector<2, _T2>& vec2)
+{
+	return
+	{	vec1[0] * vec2[0],
+		vec1[1] * vec2[1]};
+}
 
 //3维向量特化
 template<typename _T>
@@ -510,7 +565,18 @@ __def_vector_op_unit__	(_T, 3)
 	inline vector<3, _Result> operator/(_T2 t) const
 	{
 		return
-		{	coord[0]/t,coord[1]/t,coord[2]/t};
+		{	coord[0]/t, coord[1]/t, coord[2]/t};
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
+	inline vector<3, _Result> operator/(const vector<3, _T2>& vec) const
+	{
+		return
+		{
+			coord[0] / vec.coord[0],
+			coord[1] / vec.coord[1],
+			coord[2] / vec.coord[2]
+		};
 	}
 
 	/**
@@ -542,6 +608,15 @@ __def_vector_op_unit__	(_T, 3)
 		return oss.str();
 	}
 };
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline vector<3, _Result> hadamard(const vector<3, _T1>& vec1, const vector<3, _T2>& vec2)
+{
+	return
+	{	vec1[0] * vec2[0],
+		vec1[1] * vec2[1],
+		vec1[2] * vec2[2]};
+}
 
 //4维向量特化
 template<typename _T>
@@ -627,6 +702,18 @@ __def_vector_op_unit__	(_T, 4)
 		{	coord[0] / t, coord[1] / t, coord[2] / t, coord[3] / t};
 	}
 
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
+	inline vector<4, _Result> operator/(const vector<4, _T2>& vec) const
+	{
+		return
+		{
+			coord[0] / vec.coord[0],
+			coord[1] / vec.coord[1],
+			coord[2] / vec.coord[2],
+			coord[3] / vec.coord[3]
+		};
+	}
+
 	inline static vector<4, _T> zero()
 	{
 		return
@@ -647,6 +734,159 @@ __def_vector_op_unit__	(_T, 4)
 	}
 };
 
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline vector<4, _Result> hadamard(const vector<4, _T1>& vec1, const vector<4, _T2>& vec2)
+{
+	return
+	{	vec1[0] * vec2[0],
+		vec1[1] * vec2[1],
+		vec1[2] * vec2[2],
+		vec1[3] * vec2[3]};
+}
+
+//6维向量特化
+template<typename _T>
+class vector<6, _T>
+{
+public:
+	__def_vector_members__(_T, 6)
+
+	__def_vector_op_cast_ptr__(_T)
+
+	__def_vector_op_coord__(_T)
+
+	__def_vector_op_norm__(_T)
+
+__def_vector_op_unit__	(_T, 6)
+
+	__def_vector_op_to_matrix__(_T, 6)
+
+	template<typename _T2>
+	inline operator vector<6, _T2>() const
+	{
+		return
+		{	(_T2)coord[0], (_T2)coord[1], (_T2)coord[2],
+			(_T2)coord[3], (_T2)coord[4], (_T2)coord[5]};
+	}
+
+	template<typename _T2>
+	inline vector<6, _T>& operator=(const vector<6, _T2>& vec)
+	{
+		coord[0] = (_T)vec.coord[0];
+		coord[1] = (_T)vec.coord[1];
+		coord[2] = (_T)vec.coord[2];
+		coord[3] = (_T)vec.coord[3];
+		coord[4] = (_T)vec.coord[4];
+		coord[5] = (_T)vec.coord[5];
+		return *this;
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() + tplmp::decl<_T2>::val())>
+	inline vector<6, _Result> operator+(const vector<6, _T2>& vec) const
+	{
+		return
+		{
+			coord[0] + vec.coord[0],
+			coord[1] + vec.coord[1],
+			coord[2] + vec.coord[2],
+			coord[3] + vec.coord[3],
+			coord[4] + vec.coord[4],
+			coord[5] + vec.coord[5]
+		};
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() - tplmp::decl<_T2>::val())>
+	inline vector<6, _Result> operator-(const vector<6, _T2>& vec) const
+	{
+		return
+		{
+			coord[0] - vec.coord[0],
+			coord[1] - vec.coord[1],
+			coord[2] - vec.coord[2],
+			coord[3] - vec.coord[3],
+			coord[4] - vec.coord[4],
+			coord[5] - vec.coord[5]
+		};
+	}
+
+	inline vector<6, _T> operator-() const
+	{
+		return
+		{	-coord[0], -coord[1], -coord[2],
+			-coord[3], -coord[4], -coord[5]};
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
+	inline vector<6, _Result> operator*(_T2 t) const
+	{
+		return
+		{	coord[0] * t, coord[1] * t, coord[2] * t,
+			coord[3] * t, coord[4] * t, coord[5] * t};
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
+	inline _Result operator*(const vector<6, _T2>& vec) const
+	{
+		return coord[0] * vec.coord[0] + coord[1] * vec.coord[1] +
+		coord[2] * vec.coord[2] + coord[3] * vec.coord[3] +
+		coord[4] * vec.coord[4] + coord[5] * vec.coord[5];
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
+	inline vector<6, _Result> operator/(_T2 t) const
+	{
+		return
+		{	coord[0] / t, coord[1] / t, coord[2] / t,
+			coord[3] / t, coord[4] / t, coord[5] / t};
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
+	inline vector<6, _Result> operator/(const vector<6, _T2>& vec) const
+	{
+		return
+		{
+			coord[0] / vec.coord[0],
+			coord[1] / vec.coord[1],
+			coord[2] / vec.coord[2],
+			coord[3] / vec.coord[3],
+			coord[4] / vec.coord[4],
+			coord[5] / vec.coord[5]
+		};
+	}
+
+	inline static vector<6, _T> zero()
+	{
+		return
+		{	_T(0), _T(0), _T(0), _T(0), _T(0), _T(0)};
+	}
+
+	inline static vector<6, _T> one()
+	{
+		return
+		{	_T(1), _T(1), _T(1), _T(1), _T(1), _T(1)};
+	}
+
+	inline operator std::string() const
+	{
+		std::ostringstream oss;
+		oss << '(' << coord[0] << ", " << coord[1] << ", " << coord[2]
+		<< ", " << coord[3] << ", " << coord[4] << ", " << coord[5] << ')';
+		return oss.str();
+	}
+};
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline vector<6, _Result> hadamard(const vector<6, _T1>& vec1, const vector<6, _T2>& vec2)
+{
+	return
+	{	vec1[0] * vec2[0],
+		vec1[1] * vec2[1],
+		vec1[2] * vec2[2],
+		vec1[3] * vec2[3],
+		vec1[4] * vec2[4],
+		vec1[5] * vec2[5]};
+}
+
 template<typename _T>
 using vector1 = vector<1, _T>;
 template<typename _T>
@@ -655,21 +895,26 @@ template<typename _T>
 using vector3 = vector<3, _T>;
 template<typename _T>
 using vector4 = vector<4, _T>;
+template<typename _T>
+using vector6 = vector<6, _T>;
 
 using vector1f = vector1<float>;
 using vector2f = vector2<float>;
 using vector3f = vector3<float>;
 using vector4f = vector4<float>;
+using vector6f = vector6<float>;
 
 using vector1d = vector1<double>;
 using vector2d = vector2<double>;
 using vector3d = vector3<double>;
 using vector4d = vector4<double>;
+using vector6d = vector6<double>;
 
 using vector1q = vector1<__float128>;
 using vector2q = vector2<__float128>;
 using vector3q = vector3<__float128>;
 using vector4q = vector4<__float128>;
+using vector6q = vector6<__float128>;
 }
 
 #endif//_MATH_VECTOR
