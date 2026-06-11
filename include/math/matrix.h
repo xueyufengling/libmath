@@ -77,7 +77,7 @@ public:
 				pivot_row = r;\
 			}\
 		}\
-		if(math::is_zero(max_abs, eps))\
+		if(math::algebra::is_zero(max_abs, eps))\
 			return row;\
 		else\
 			return pivot_row;\
@@ -106,7 +106,7 @@ public:
 				}\
 			}\
 		}\
-		if(math::is_zero(max_abs, eps))\
+		if(math::algebra::is_zero(max_abs, eps))\
 			return {row, column};\
 		else\
 			return pivot_coord;\
@@ -141,6 +141,46 @@ public:
 		return *this;\
 	}
 			__def_matrix_op_swap_column__(_T, _Row, _Column)
+
+			/**
+			 * 矩阵分块，分块区间为[_BeginRow, _EndRow)，[_BeginColumn, _EndColumn)
+			 */
+#define __def_matrix_op_partition__(elem_type, row, column)\
+	template<size_t _PartitionRow, size_t _PartitionColumn>\
+	inline matrix<_PartitionRow, _PartitionColumn, elem_type> partition(size_t row_begin, size_t column_begin) const\
+	{\
+		static_assert(_PartitionRow >= 0 && _PartitionColumn >= 0, "invalid partition size");\
+		matrix<_PartitionRow, _PartitionColumn, elem_type> partition_result;\
+		for(size_t i = 0; i < _PartitionRow; ++i)\
+		{\
+			partition_result.elem[i] = elem[row_begin + i].template slice<_PartitionColumn>(column_begin);\
+		}\
+		return partition_result;\
+	}
+
+			__def_matrix_op_partition__(_T, _Row, _Column)
+
+#define __def_matrix_op_mask__(elem_type, row, column)\
+	template<typename _Result = _T>\
+	inline matrix<row, column, _Result> mask(size_t row_begin, size_t row_end, size_t column_begin, size_t column_end, _Result mask_value) const\
+	{\
+		matrix<row, column, _Result> mask_mat;\
+		for(size_t i = 0; i < row_begin; ++i)\
+		{\
+			mask_mat.elem[i] = vector<column, _Result>::all(mask_value);\
+		}\
+		for(size_t i = row_begin; i < row_end; ++i)\
+		{\
+			mask_mat.elem[i] = elem[i].template mask<_Result>(column_begin, column_end, mask_value);\
+		}\
+		for(size_t i = row_end; i < row; ++i)\
+		{\
+			mask_mat.elem[i] = vector<column, _Result>::all(mask_value);\
+		}\
+		return mask_mat;\
+	}
+
+			__def_matrix_op_mask__(_T, _Row, _Column)
 
 			/**
 			 * 提取列向量
@@ -220,6 +260,14 @@ public:
 		return mul_result;
 	}
 
+	template<typename _T2>
+	inline matrix<_Row, _Column, _T>& operator*=(const _T2& t)
+	{
+		for(size_t i = 0; i < _Row; ++i)
+			elem[i] *= t;
+		return *this;
+	}
+
 	/**
 	 * 矩阵乘法
 	 */
@@ -284,23 +332,48 @@ public:
 		return transpose_result;
 	}
 
-	inline static matrix<_Row, _Column, _T> zero()
+	inline static matrix<_Row, _Column, _T> all(_T value)
 	{
-		matrix<_Row, _Column, _T> zero_mat;
-		zero_mat.elem[0] = vector<_Column, _T>::zero();
+		matrix<_Row, _Column, _T> mat;
+		mat.elem[0] = vector<_Column, _T>::all(value);
 		for(size_t i = 1; i < _Row; ++i)
-		zero_mat.elem[i] = zero_mat.elem[0];
-		return zero_mat;
+		mat.elem[i] = mat.elem[0];
+		return mat;
 	}
 
-	inline static matrix<_Row, _Column, _T> one()
-	{
-		matrix<_Row, _Column, _T> one_mat;
-		one_mat.elem[0] = vector<_Column, _T>::one();
-		for(size_t i = 1; i < _Row; ++i)
-		one_mat.elem[i] = one_mat.elem[0];
-		return one_mat;
+#define __def_matrix_zero_one__(elem_type, row_, column_)\
+	inline static matrix<row_, column_, elem_type> zero()\
+	{\
+		return all(0);\
+	}\
+	inline static matrix<row_, column_, elem_type> one()\
+	{\
+		return all(1);\
 	}
+	__def_matrix_zero_one__(_T, _Row, _Column)
+
+#define __def_matrix_op_sum__(elem_type, row_, column_)\
+	template<typename _Result = decltype(tplmp::decl<elem_type>::val() + tplmp::decl<elem_type>::val())>\
+	inline _Result sum_row(size_t i) const\
+	{\
+		_T sum(0);\
+		for(size_t j = 0; j < column_; ++j)\
+		{\
+			sum += elem[i][j];\
+		}\
+		return sum;\
+	}\
+	template<typename _Result = decltype(tplmp::decl<elem_type>::val() + tplmp::decl<elem_type>::val())>\
+	inline _Result sum_column(size_t j) const\
+	{\
+		_T sum(0);\
+		for(size_t i = 0; i < row_; ++i)\
+		{\
+			sum += elem[i][j];\
+		}\
+		return sum;\
+	}
+	__def_matrix_op_sum__(_T, _Row, _Column)
 
 	inline operator std::string() const
 	{
@@ -333,9 +406,48 @@ inline std::ostream& operator<<(std::ostream& os, const matrix<_Row, _Column, _T
 template<typename _T1, size_t _Row, size_t _Column, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
 inline matrix<_Row, _Column, _Result> operator*(_T1 t, const matrix<_Row, _Column, _T2>& mat)
 {
-	return mat.template operator*<_T1, _Result>(t);
+	matrix<_Row, _Column, _Result> mul_result;
+	for(size_t i = 0; i < _Row; ++i)
+		mul_result[i] = t * mat.elem[i];
+	return mul_result;
 }
 
+template<typename _T1, size_t _Row, size_t _Column, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
+inline matrix<_Row, _Column, _Result> operator/(_T1 t, const matrix<_Row, _Column, _T2>& mat)
+{
+	matrix<_Row, _Column, _Result> div_result;
+	for(size_t i = 0; i < _Row; ++i)
+		div_result[i] = t / mat.elem[i];
+	return div_result;
+}
+
+template<size_t _Row, size_t _Column1, size_t _Column2, typename _T>
+inline matrix<_Row, _Column1 + _Column2, _T> cat_column(const matrix<_Row, _Column1, _T>& mat1, const matrix<_Row, _Column2, _T>& mat2)
+{
+	matrix<_Row, _Column1 + _Column2, _T> mat;
+	for(size_t i = 0; i < _Row; ++i)
+		mat.elem[i] = cat(mat1.elem[i], mat2.elem[i]);
+	return mat;
+}
+
+/**
+ * @brief 4个分块矩阵拼接
+ */
+template<size_t _Row1, size_t _Column1, size_t _Row2, size_t _Column2, typename _T>
+inline matrix<_Row1 + _Row2, _Column1 + _Column2, _T> cat(const matrix<_Row1, _Column1, _T>& left_up, const matrix<_Row1, _Column2, _T>& right_up, const matrix<_Row2, _Column1, _T>& left_down, const matrix<_Row2, _Column2, _T>& right_down)
+{
+	constexpr size_t cat_row = _Row1 + _Row2;
+	constexpr size_t cat_column = _Column1 + _Column2;
+	matrix<cat_row, cat_column, _T> mat;
+	for(size_t i = 0; i < _Row1; ++i)
+		mat.elem[i] = cat(left_up.elem[i], right_up.elem[i]);
+	for(size_t i = _Row1; i < cat_row; ++i)
+		mat.elem[i] = cat(left_down.elem[i], right_down.elem[i]);
+	return mat;
+}
+
+namespace algebra
+{
 //基
 template<size_t _Row, size_t _Column, typename _T>
 struct __basis_impl<matrix<_Row, _Column, _T> >
@@ -347,6 +459,7 @@ struct __basis_impl<matrix<_Row, _Column, _T> >
 		return basis;
 	}
 };
+}
 
 /**
  * Row Echelon Form，即变换为行阶梯形
@@ -496,10 +609,22 @@ inline _Result tr(const matrix<_Order, _Order, _T>& mat)
 /**
  * 恒等元
  */
-template<size_t _Order, typename _T>
-struct __identity_impl<matrix<_Order, _Order, _T> >
+namespace algebra
 {
-	static matrix<_Order, _Order, _T> value()
+//加法恒等元：零矩阵
+template<size_t _Row, size_t _Column, typename _T>
+struct __identity_impl<matrix<_Row, _Column, _T>, algebra::add>
+{
+	inline static matrix<_Row, _Column, _T> value()
+	{
+		return matrix<_Row, _Column, _T>::zero();
+	}
+};
+//乘法恒等元：恒等矩阵
+template<size_t _Order, typename _T>
+struct __identity_impl<matrix<_Order, _Order, _T>, algebra::mul>
+{
+	inline static matrix<_Order, _Order, _T> value()
 	{
 		matrix<_Order, _Order, _T> identity = matrix<_Order, _Order, _T>::zero();
 		for(size_t i = 0; i < _Order; ++i)
@@ -507,6 +632,16 @@ struct __identity_impl<matrix<_Order, _Order, _T> >
 		return identity;
 	}
 };
+//乘法零元：零矩阵
+template<size_t _Row, size_t _Column, typename _T>
+struct __zero_impl<matrix<_Row, _Column, _T>, algebra::mul>
+{
+	inline static matrix<_Row, _Column, _T> value()
+	{
+		return matrix<_Row, _Column, _T>::zero();
+	}
+};
+}
 
 // 1x1 方阵特化
 template<typename _T>
@@ -527,6 +662,12 @@ public:
 
 	//交换行
 	__def_matrix_op_swap_row__(_T, 1, 1)
+
+	__def_matrix_op_sum__(_T, 1, 1)
+
+	__def_matrix_op_partition__(_T, 1, 1)
+
+	__def_matrix_op_mask__(_T, 1, 1)
 
 	inline matrix<1,
 	1, _T>& swap_column(size_t column1, size_t column2)
@@ -583,6 +724,13 @@ public:
 		return tplmp::cast<matrix<1, 1, _Result> >(m_elem);
 	}
 
+	template<typename _T2>
+	inline matrix<1, 1, _T>& operator*=(const _T2& t)
+	{
+		elem[0] *= t;
+		return *this;
+	}
+
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
 	inline matrix<1, 1, _Result> operator*(const matrix<1, 1, _T2>& mat) const
 	{
@@ -613,6 +761,13 @@ public:
 		return tplmp::cast<matrix<1, 1, _Result> >(m_elem);
 	}
 
+	template<typename _T2>
+	inline matrix<1, 1, _T>& operator/=(const _T2& t)
+	{
+		elem[0] /= t;
+		return *this;
+	}
+
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
 	inline matrix<1, 1, _Result> operator/(const matrix<1, 1, _T2>& mat) const
 	{
@@ -641,17 +796,12 @@ public:
 		return tplmp::cast<matrix<1, 1, _T> >(m_elem);
 	}
 
-	inline static matrix<1, 1, _T> zero()
+	inline static matrix<1, 1, _T> all(_T value)
 	{
-		_T m_elem[] = {_T(0)};
+		_T m_elem[] = {value};
 		return tplmp::cast<matrix<1, 1, _T> >(m_elem);
 	}
-
-	inline static matrix<1, 1, _T> one()
-	{
-		_T m_elem[] = {_T(1)};
-		return tplmp::cast<matrix<1, 1, _T> >(m_elem);
-	}
+	__def_matrix_zero_one__(_T, 1, 1)
 
 	inline operator std::string() const
 	{
@@ -660,6 +810,26 @@ public:
 		return oss.str();
 	}
 };
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline matrix<1, 1, _Result> operator*(_T1 t, const matrix<1, 1, _T2>& mat)
+{
+	_Result m_elem[] =
+			{
+					t * mat.elem[0][0]
+			};
+	return tplmp::cast<matrix<1, 1, _Result> >(m_elem);
+}
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
+inline matrix<1, 1, _Result> operator/(_T1 t, const matrix<1, 1, _T2>& mat)
+{
+	_Result m_elem[] =
+			{
+					t / mat.elem[0][0]
+			};
+	return tplmp::cast<matrix<1, 1, _Result> >(m_elem);
+}
 
 template<typename _T, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
 inline _Result det(const matrix<1, 1, _T>& mat)
@@ -683,8 +853,10 @@ inline _Result tr(const matrix<1, 1, _T>& mat)
 	return mat.elem[0][0];
 }
 
+namespace algebra
+{
 template<typename _T>
-struct __identity_impl<matrix<1, 1, _T>>
+struct __identity_impl<matrix<1, 1, _T>, algebra::mul>
 {
 	static matrix<1, 1, _T> value()
 	{
@@ -692,6 +864,7 @@ struct __identity_impl<matrix<1, 1, _T>>
 		return tplmp::cast<matrix<1, 1, _T> >(m_elem);
 	}
 };
+}
 
 //2x2方阵特化
 template<typename _T>
@@ -711,6 +884,12 @@ public:
 	__def_matrix_op_complete_pivot_coord__(_T, 2, 2)
 
 	__def_matrix_op_swap_row__(_T, 2, 2)
+
+	__def_matrix_op_sum__(_T, 2, 2)
+
+	__def_matrix_op_partition__(_T, 2, 2)
+
+	__def_matrix_op_mask__(_T, 2, 2)
 
 	//交换列
 			inline matrix<2,
@@ -779,6 +958,14 @@ public:
 		return tplmp::cast<matrix<2, 2, _Result> >(m_elem);
 	}
 
+	template<typename _T2>
+	inline matrix<2, 2, _T>& operator*=(const _T2& t)
+	{
+		elem[0] *= t;
+		elem[1] *= t;
+		return *this;
+	}
+
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
 	inline matrix<2, 2, _Result> operator*(const matrix<2, 2, _T2>& mat) const
 	{
@@ -815,6 +1002,14 @@ public:
 		return tplmp::cast<matrix<2, 2, _Result> >(m_elem);
 	}
 
+	template<typename _T2>
+	inline matrix<2, 2, _T>& operator/=(const _T2& t)
+	{
+		elem[0] /= t;
+		elem[1] /= t;
+		return *this;
+	}
+
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
 	inline matrix<2, 2, _Result> operator/(const matrix<2, 2, _T2>& mat) const
 	{
@@ -845,25 +1040,15 @@ public:
 		return tplmp::cast<matrix<2, 2, _T> >(m_elem);
 	}
 
-	inline static matrix<2, 2, _T> zero()
+	inline static matrix<2, 2, _T> all(_T value)
 	{
-		_T m_elem[] =
-				{
-						_T(0), _T(0),
-						_T(0), _T(0)
-				};
+		_T m_elem[] = {
+				value, value,
+				value, value
+		};
 		return tplmp::cast<matrix<2, 2, _T> >(m_elem);
 	}
-
-	inline static matrix<2, 2, _T> one()
-	{
-		_T m_elem[] =
-				{
-						_T(1), _T(1),
-						_T(1), _T(1)
-				};
-		return tplmp::cast<matrix<2, 2, _T> >(m_elem);
-	}
+	__def_matrix_zero_one__(_T, 2, 2)
 
 	inline operator std::string() const
 	{
@@ -873,6 +1058,26 @@ public:
 		return oss.str();
 	}
 };
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline matrix<2, 2, _Result> operator*(_T1 t, const matrix<2, 2, _T2>& mat)
+{
+	_Result m_elem[] = {
+			t * mat.elem[0][0], t * mat.elem[0][1],
+			t * mat.elem[1][0], t * mat.elem[1][1]
+	};
+	return tplmp::cast<matrix<2, 2, _Result> >(m_elem);
+}
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
+inline matrix<2, 2, _Result> operator/(_T1 t, const matrix<2, 2, _T2>& mat)
+{
+	_Result m_elem[] = {
+			t / mat.elem[0][0], t / mat.elem[0][1],
+			t / mat.elem[1][0], t / mat.elem[1][1]
+	};
+	return tplmp::cast<matrix<2, 2, _Result> >(m_elem);
+}
 
 template<typename _T, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
 inline _Result det(const matrix<2, 2, _T>& mat)
@@ -897,8 +1102,10 @@ inline _Result tr(const matrix<2, 2, _T>& mat)
 	return mat.elem[0][0] + mat.elem[1][1];
 }
 
+namespace algebra
+{
 template<typename _T>
-struct __identity_impl<matrix<2, 2, _T>>
+struct __identity_impl<matrix<2, 2, _T>, algebra::mul>
 {
 	static matrix<2, 2, _T> value()
 	{
@@ -910,6 +1117,7 @@ struct __identity_impl<matrix<2, 2, _T>>
 		return tplmp::cast<matrix<2, 2, _T> >(m_elem);
 	}
 };
+}
 
 //3x3方阵特化
 template<typename _T>
@@ -930,6 +1138,12 @@ public:
 
 	//交换行
 	__def_matrix_op_swap_row__(_T, 3, 3)
+
+	__def_matrix_op_sum__(_T, 3, 3)
+
+	__def_matrix_op_partition__(_T, 3, 3)
+
+	__def_matrix_op_mask__(_T, 3, 3)
 
 	//交换列
 			inline matrix<3,
@@ -1006,6 +1220,15 @@ public:
 		return tplmp::cast<matrix<3, 3, _Result> >(m_elem);
 	}
 
+	template<typename _T2>
+	inline matrix<3, 3, _T>& operator*=(const _T2& t)
+	{
+		elem[0] *= t;
+		elem[1] *= t;
+		elem[2] *= t;
+		return *this;
+	}
+
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
 	inline matrix<3, 3, _Result> operator*(const matrix<3, 3, _T2>& mat) const
 	{
@@ -1050,6 +1273,15 @@ public:
 		return tplmp::cast<matrix<3, 3, _Result> >(m_elem);
 	}
 
+	template<typename _T2>
+	inline matrix<3, 3, _T>& operator/=(const _T2& t)
+	{
+		elem[0] /= t;
+		elem[1] /= t;
+		elem[2] /= t;
+		return *this;
+	}
+
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
 	inline matrix<3, 3, _Result> operator/(const matrix<3, 3, _T2>& mat) const
 	{
@@ -1082,27 +1314,16 @@ public:
 		return tplmp::cast<matrix<3, 3, _T> >(m_elem);
 	}
 
-	inline static matrix<3, 3, _T> zero()
+	inline static matrix<3, 3, _T> all(_T value)
 	{
-		_T m_elem[] =
-				{
-						_T(0), _T(0), _T(0),
-						_T(0), _T(0), _T(0),
-						_T(0), _T(0), _T(0)
-				};
+		_T m_elem[] = {
+				value, value, value,
+				value, value, value,
+				value, value, value
+		};
 		return tplmp::cast<matrix<3, 3, _T> >(m_elem);
 	}
-
-	inline static matrix<3, 3, _T> one()
-	{
-		_T m_elem[] =
-				{
-						_T(1), _T(1), _T(1),
-						_T(1), _T(1), _T(1),
-						_T(1), _T(1), _T(1)
-				};
-		return tplmp::cast<matrix<3, 3, _T> >(m_elem);
-	}
+	__def_matrix_zero_one__(_T, 3, 3)
 
 	inline operator std::string() const
 	{
@@ -1113,6 +1334,28 @@ public:
 		return oss.str();
 	}
 };
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline matrix<3, 3, _Result> operator*(_T1 t, const matrix<3, 3, _T2>& mat)
+{
+	_Result m_elem[] = {
+			t * mat.elem[0][0], t * mat.elem[0][1], t * mat.elem[0][2],
+			t * mat.elem[1][0], t * mat.elem[1][1], t * mat.elem[1][2],
+			t * mat.elem[2][0], t * mat.elem[2][1], t * mat.elem[2][2]
+	};
+	return tplmp::cast<matrix<3, 3, _Result> >(m_elem);
+}
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
+inline matrix<3, 3, _Result> operator/(_T1 t, const matrix<3, 3, _T2>& mat)
+{
+	_Result m_elem[] = {
+			t / mat.elem[0][0], t / mat.elem[0][1], t / mat.elem[0][2],
+			t / mat.elem[1][0], t / mat.elem[1][1], t / mat.elem[1][2],
+			t / mat.elem[2][0], t / mat.elem[2][1], t / mat.elem[2][2]
+	};
+	return tplmp::cast<matrix<3, 3, _Result> >(m_elem);
+}
 
 template<typename _T, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
 inline _Result det(const matrix<3, 3, _T>& mat)
@@ -1140,8 +1383,10 @@ inline _Result tr(const matrix<3, 3, _T>& mat)
 	return mat.elem[0][0] + mat.elem[1][1] + mat.elem[2][2];
 }
 
+namespace algebra
+{
 template<typename _T>
-struct __identity_impl<matrix<3, 3, _T> >
+struct __identity_impl<matrix<3, 3, _T>, algebra::mul>
 {
 	static matrix<3, 3, _T> value()
 	{
@@ -1154,6 +1399,7 @@ struct __identity_impl<matrix<3, 3, _T> >
 		return tplmp::cast<matrix<3, 3, _T> >(m_elem);
 	}
 };
+}
 
 //4x4方阵特化
 template<typename _T>
@@ -1174,6 +1420,12 @@ public:
 
 	//交换行
 	__def_matrix_op_swap_row__(_T, 4, 4)
+
+	__def_matrix_op_sum__(_T, 4, 4)
+
+	__def_matrix_op_partition__(_T, 4, 4)
+
+	__def_matrix_op_mask__(_T, 4, 4)
 
 	//交换列
 			inline matrix<4,
@@ -1258,6 +1510,16 @@ public:
 		return tplmp::cast<matrix<4, 4, _Result> >(m_elem);
 	}
 
+	template<typename _T2>
+	inline matrix<4, 4, _T>& operator*=(const _T2& t)
+	{
+		elem[0] *= t;
+		elem[1] *= t;
+		elem[2] *= t;
+		elem[3] *= t;
+		return *this;
+	}
+
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
 	inline matrix<4, 4, _Result> operator*(const matrix<4, 4, _T2>& mat) const
 	{
@@ -1312,6 +1574,16 @@ public:
 		return tplmp::cast<matrix<4, 4, _Result> >(m_elem);
 	}
 
+	template<typename _T2>
+	inline matrix<4, 4, _T>& operator/=(const _T2& t)
+	{
+		elem[0] /= t;
+		elem[1] /= t;
+		elem[2] /= t;
+		elem[3] /= t;
+		return *this;
+	}
+
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
 	inline matrix<4, 4, _Result> operator/(const matrix<4, 4, _T2>& mat) const
 	{
@@ -1346,29 +1618,17 @@ public:
 		return tplmp::cast<matrix<4, 4, _T> >(m_elem);
 	}
 
-	inline static matrix<4, 4, _T> zero()
+	inline static matrix<4, 4, _T> all(_T value)
 	{
-		_T m_elem[] =
-				{
-						_T(0), _T(0), _T(0), _T(0),
-						_T(0), _T(0), _T(0), _T(0),
-						_T(0), _T(0), _T(0), _T(0),
-						_T(0), _T(0), _T(0), _T(0)
-				};
+		_T m_elem[] = {
+				value, value, value, value,
+				value, value, value, value,
+				value, value, value, value,
+				value, value, value, value
+		};
 		return tplmp::cast<matrix<4, 4, _T> >(m_elem);
 	}
-
-	inline static matrix<4, 4, _T> one()
-	{
-		_T m_elem[] =
-				{
-						_T(1), _T(1), _T(1), _T(1),
-						_T(1), _T(1), _T(1), _T(1),
-						_T(1), _T(1), _T(1), _T(1),
-						_T(1), _T(1), _T(1), _T(1)
-				};
-		return tplmp::cast<matrix<4, 4, _T> >(m_elem);
-	}
+	__def_matrix_zero_one__(_T, 4, 4)
 
 	inline operator std::string() const
 	{
@@ -1380,6 +1640,30 @@ public:
 		return oss.str();
 	}
 };
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline matrix<4, 4, _Result> operator*(_T1 t, const matrix<4, 4, _T2>& mat)
+{
+	_Result m_elem[] = {
+			t * mat.elem[0][0], t * mat.elem[0][1], t * mat.elem[0][2], t * mat.elem[0][3],
+			t * mat.elem[1][0], t * mat.elem[1][1], t * mat.elem[1][2], t * mat.elem[1][3],
+			t * mat.elem[2][0], t * mat.elem[2][1], t * mat.elem[2][2], t * mat.elem[2][3],
+			t * mat.elem[3][0], t * mat.elem[3][1], t * mat.elem[3][2], t * mat.elem[3][3]
+	};
+	return tplmp::cast<matrix<4, 4, _Result> >(m_elem);
+}
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
+inline matrix<4, 4, _Result> operator/(_T1 t, const matrix<4, 4, _T2>& mat)
+{
+	_Result m_elem[] = {
+			t / mat.elem[0][0], t / mat.elem[0][1], t / mat.elem[0][2], t / mat.elem[0][3],
+			t / mat.elem[1][0], t / mat.elem[1][1], t / mat.elem[1][2], t / mat.elem[1][3],
+			t / mat.elem[2][0], t / mat.elem[2][1], t / mat.elem[2][2], t / mat.elem[2][3],
+			t / mat.elem[3][0], t / mat.elem[3][1], t / mat.elem[3][2], t / mat.elem[3][3]
+	};
+	return tplmp::cast<matrix<4, 4, _Result> >(m_elem);
+}
 
 template<typename _T, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
 inline _Result det(const matrix<4, 4, _T>& mat)
@@ -1409,8 +1693,10 @@ inline _Result tr(const matrix<4, 4, _T>& mat)
 	return mat.elem[0][0] + mat.elem[1][1] + mat.elem[2][2] + mat.elem[3][3];
 }
 
+namespace algebra
+{
 template<typename _T>
-struct __identity_impl<matrix<4, 4, _T> >
+struct __identity_impl<matrix<4, 4, _T>, algebra::mul>
 {
 	static matrix<4, 4, _T> value()
 	{
@@ -1424,135 +1710,166 @@ struct __identity_impl<matrix<4, 4, _T> >
 		return tplmp::cast<matrix<4, 4, _T> >(m_elem);
 	}
 };
+}
 
-//6x1矩阵特化（列向量）
+//6x6矩阵特化
 //用于分析力学相空间计算
 template<typename _T>
-class matrix<6, 1, _T>
+class matrix<6, 6, _T>
 {
 public:
-	__def_matrix_members__(_T, 6, 1)
+	__def_matrix_members__(_T, 6, 6)
 
 	__def_matrix_op_cast_ptr__(_T)
 
-	__def_matrix_op_cast_vec_ptr__(_T, 6)
+	__def_matrix_op_cast_vec_ptr__(_T, 36)
 
 	__def_matrix_op_row_vec__(_T, 6)
 
 	__def_matrix_op_partial_pivot_row__(_T, 6)
 
-	__def_matrix_op_complete_pivot_coord__(_T, 6, 1)
+	__def_matrix_op_complete_pivot_coord__(_T, 6, 6)
 
 	//交换行
-	__def_matrix_op_swap_row__(_T, 6, 1)
+	__def_matrix_op_swap_row__(_T, 6, 6)
+
+	__def_matrix_op_sum__(_T, 6, 6)
+
+	__def_matrix_op_partition__(_T, 6, 6)
+
+	__def_matrix_op_mask__(_T, 6, 6)
 
 	inline matrix<6,
-	1, _T>& swap_column(size_t column1, size_t column2)
+	6, _T>& swap_column(size_t column1, size_t column2)
 	{
 		return *this;
 	}
 
 	template<typename _T2>
-	inline operator matrix<6, 1, _T2>()
+	inline operator matrix<6, 6, _T2>()
 	{
 		_T2 m_elem[] = {
-				(_T2)elem[0][0],
-				(_T2)elem[1][0],
-				(_T2)elem[2][0],
-				(_T2)elem[3][0],
-				(_T2)elem[4][0],
-				(_T2)elem[5][0]
+				(_T2)elem[0][0], (_T2)elem[0][1], (_T2)elem[0][2], (_T2)elem[0][3], (_T2)elem[0][4], (_T2)elem[0][5],
+				(_T2)elem[1][0], (_T2)elem[1][1], (_T2)elem[1][2], (_T2)elem[1][3], (_T2)elem[1][4], (_T2)elem[1][5],
+				(_T2)elem[2][0], (_T2)elem[2][1], (_T2)elem[2][2], (_T2)elem[2][3], (_T2)elem[2][4], (_T2)elem[2][5],
+				(_T2)elem[3][0], (_T2)elem[3][1], (_T2)elem[3][2], (_T2)elem[3][3], (_T2)elem[3][4], (_T2)elem[3][5],
+				(_T2)elem[4][0], (_T2)elem[4][1], (_T2)elem[4][2], (_T2)elem[4][3], (_T2)elem[4][4], (_T2)elem[4][5],
+				(_T2)elem[5][0], (_T2)elem[5][1], (_T2)elem[5][2], (_T2)elem[5][3], (_T2)elem[5][4], (_T2)elem[5][5]
 		};
-		return tplmp::cast<matrix<6, 1, _T2> >(m_elem);
+		return tplmp::cast<matrix<6, 6, _T2> >(m_elem);
 	}
 
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() + tplmp::decl<_T2>::val())>
-	inline matrix<6, 1, _Result> operator+(const matrix<6, 1, _T2>& mat) const
+	inline matrix<6, 6, _Result> operator+(const matrix<6, 6, _T2>& mat) const
 	{
 		_Result m_elem[] = {
-				elem[0][0] + mat.elem[0][0],
-				elem[1][0] + mat.elem[1][0],
-				elem[2][0] + mat.elem[2][0],
-				elem[3][0] + mat.elem[3][0],
-				elem[4][0] + mat.elem[4][0],
-				elem[5][0] + mat.elem[5][0]
+				elem[0][0] + mat.elem[0][0], elem[0][1] + mat.elem[0][1], elem[0][2] + mat.elem[0][2], elem[0][3] + mat.elem[0][3], elem[0][4] + mat.elem[0][4], elem[0][5] + mat.elem[0][5],
+				elem[1][0] + mat.elem[1][0], elem[1][1] + mat.elem[1][1], elem[1][2] + mat.elem[1][2], elem[1][3] + mat.elem[1][3], elem[1][4] + mat.elem[1][4], elem[1][5] + mat.elem[1][5],
+				elem[2][0] + mat.elem[2][0], elem[2][1] + mat.elem[2][1], elem[2][2] + mat.elem[2][2], elem[2][3] + mat.elem[2][3], elem[2][4] + mat.elem[2][4], elem[2][5] + mat.elem[2][5],
+				elem[3][0] + mat.elem[3][0], elem[3][1] + mat.elem[3][1], elem[3][2] + mat.elem[3][2], elem[3][3] + mat.elem[3][3], elem[3][4] + mat.elem[3][4], elem[3][5] + mat.elem[3][5],
+				elem[4][0] + mat.elem[4][0], elem[4][1] + mat.elem[4][1], elem[4][2] + mat.elem[4][2], elem[4][3] + mat.elem[4][3], elem[4][4] + mat.elem[4][4], elem[4][5] + mat.elem[4][5],
+				elem[5][0] + mat.elem[5][0], elem[5][1] + mat.elem[5][1], elem[5][2] + mat.elem[5][2], elem[5][3] + mat.elem[5][3], elem[5][4] + mat.elem[5][4], elem[5][5] + mat.elem[5][5]
 		};
-		return tplmp::cast<matrix<6, 1, _Result> >(m_elem);
+		return tplmp::cast<matrix<6, 6, _Result> >(m_elem);
 	}
 
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() - tplmp::decl<_T2>::val())>
-	inline matrix<6, 1, _Result> operator-(const matrix<6, 1, _T2>& mat) const
+	inline matrix<6, 6, _Result> operator-(const matrix<6, 6, _T2>& mat) const
 	{
 		_Result m_elem[] = {
-				elem[0][0] - mat.elem[0][0],
-				elem[1][0] - mat.elem[1][0],
-				elem[2][0] - mat.elem[2][0],
-				elem[3][0] - mat.elem[3][0],
-				elem[4][0] - mat.elem[4][0],
-				elem[5][0] - mat.elem[5][0]
+				elem[0][0] - mat.elem[0][0], elem[0][1] - mat.elem[0][1], elem[0][2] - mat.elem[0][2], elem[0][3] - mat.elem[0][3], elem[0][4] - mat.elem[0][4], elem[0][5] - mat.elem[0][5],
+				elem[1][0] - mat.elem[1][0], elem[1][1] - mat.elem[1][1], elem[1][2] - mat.elem[1][2], elem[1][3] - mat.elem[1][3], elem[1][4] - mat.elem[1][4], elem[1][5] - mat.elem[1][5],
+				elem[2][0] - mat.elem[2][0], elem[2][1] - mat.elem[2][1], elem[2][2] - mat.elem[2][2], elem[2][3] - mat.elem[2][3], elem[2][4] - mat.elem[2][4], elem[2][5] - mat.elem[2][5],
+				elem[3][0] - mat.elem[3][0], elem[3][1] - mat.elem[3][1], elem[3][2] - mat.elem[3][2], elem[3][3] - mat.elem[3][3], elem[3][4] - mat.elem[3][4], elem[3][5] - mat.elem[3][5],
+				elem[4][0] - mat.elem[4][0], elem[4][1] - mat.elem[4][1], elem[4][2] - mat.elem[4][2], elem[4][3] - mat.elem[4][3], elem[4][4] - mat.elem[4][4], elem[4][5] - mat.elem[4][5],
+				elem[5][0] - mat.elem[5][0], elem[5][1] - mat.elem[5][1], elem[5][2] - mat.elem[5][2], elem[5][3] - mat.elem[5][3], elem[5][4] - mat.elem[5][4], elem[5][5] - mat.elem[5][5]
 		};
-		return tplmp::cast<matrix<6, 1, _Result> >(m_elem);
+		return tplmp::cast<matrix<6, 6, _Result> >(m_elem);
 	}
 
-	inline matrix<6, 1, _T> operator-() const
+	inline matrix<6, 6, _T> operator-() const
 	{
 		_T m_elem[] = {
-				-elem[0][0],
-				-elem[1][0],
-				-elem[2][0],
-				-elem[3][0],
-				-elem[4][0],
-				-elem[5][0]
+				-elem[0][0], -elem[0][1], -elem[0][2], -elem[0][3], -elem[0][4], -elem[0][5],
+				-elem[1][0], -elem[1][1], -elem[1][2], -elem[1][3], -elem[1][4], -elem[1][5],
+				-elem[2][0], -elem[2][1], -elem[2][2], -elem[2][3], -elem[2][4], -elem[2][5],
+				-elem[3][0], -elem[3][1], -elem[3][2], -elem[3][3], -elem[3][4], -elem[3][5],
+				-elem[4][0], -elem[4][1], -elem[4][2], -elem[4][3], -elem[4][4], -elem[4][5],
+				-elem[5][0], -elem[5][1], -elem[5][2], -elem[5][3], -elem[5][4], -elem[5][5]
 		};
-		return tplmp::cast<matrix<6, 1, _T> >(m_elem);
+		return tplmp::cast<matrix<6, 6, _T> >(m_elem);
 	}
 
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
-	inline matrix<6, 1, _Result> operator*(_T2 t) const
+	inline matrix<6, 6, _Result> operator*(_T2 t) const
 	{
 		_Result m_elem[] = {
-				elem[0][0] * t,
-				elem[1][0] * t,
-				elem[2][0] * t,
-				elem[3][0] * t,
-				elem[4][0] * t,
-				elem[5][0] * t
+				elem[0][0] * t, elem[0][1] * t, elem[0][2] * t, elem[0][3] * t, elem[0][4] * t, elem[0][5] * t,
+				elem[1][0] * t, elem[1][1] * t, elem[1][2] * t, elem[1][3] * t, elem[1][4] * t, elem[1][5] * t,
+				elem[2][0] * t, elem[2][1] * t, elem[2][2] * t, elem[2][3] * t, elem[2][4] * t, elem[2][5] * t,
+				elem[3][0] * t, elem[3][1] * t, elem[3][2] * t, elem[3][3] * t, elem[3][4] * t, elem[3][5] * t,
+				elem[4][0] * t, elem[4][1] * t, elem[4][2] * t, elem[4][3] * t, elem[4][4] * t, elem[4][5] * t,
+				elem[5][0] * t, elem[5][1] * t, elem[5][2] * t, elem[5][3] * t, elem[5][4] * t, elem[5][5] * t
 		};
-		return tplmp::cast<matrix<6, 1, _Result> >(m_elem);
+		return tplmp::cast<matrix<6, 6, _Result> >(m_elem);
 	}
 
-	__def_matrix_op_matrix_mul__(_T, 6, 1)
+	template<typename _T2>
+	inline matrix<6, 6, _T>& operator*=(const _T2& t)
+	{
+		elem[0] *= t;
+		elem[1] *= t;
+		elem[2] *= t;
+		elem[3] *= t;
+		elem[4] *= t;
+		elem[5] *= t;
+		return *this;
+	}
 
-	__def_matrix_op_vector_mul__(_T, 6, 1)
+	__def_matrix_op_matrix_mul__(_T, 6, 6)
+
+	__def_matrix_op_vector_mul__(_T, 6, 6)
 
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
-	inline matrix<6, 1, _Result> operator/(_T2 t) const
+	inline matrix<6, 6, _Result> operator/(_T2 t) const
 	{
 		_Result m_elem[] =
 		{
-			elem[0][0] / t,
-			elem[1][0] / t,
-			elem[2][0] / t,
-			elem[3][0] / t,
-			elem[4][0] / t,
-			elem[5][0] / t
+			elem[0][0] / t, elem[0][1] / t, elem[0][2] / t, elem[0][3] / t, elem[0][4] / t, elem[0][5] / t,
+			elem[1][0] / t, elem[1][1] / t, elem[1][2] / t, elem[1][3] / t, elem[1][4] / t, elem[1][5] / t,
+			elem[2][0] / t, elem[2][1] / t, elem[2][2] / t, elem[2][3] / t, elem[2][4] / t, elem[2][5] / t,
+			elem[3][0] / t, elem[3][1] / t, elem[3][2] / t, elem[3][3] / t, elem[3][4] / t, elem[3][5] / t,
+			elem[4][0] / t, elem[4][1] / t, elem[4][2] / t, elem[4][3] / t, elem[4][4] / t, elem[4][5] / t,
+			elem[5][0] / t, elem[5][1] / t, elem[5][2] / t, elem[5][3] / t, elem[5][4] / t, elem[5][5] / t
 		};
-		return tplmp::cast<matrix<6, 1, _Result> >(m_elem);
+		return tplmp::cast<matrix<6, 6, _Result> >(m_elem);
+	}
+
+	template<typename _T2>
+	inline matrix<6, 6, _T>& operator/=(const _T2& t)
+	{
+		elem[0] /= t;
+		elem[1] /= t;
+		elem[2] /= t;
+		elem[3] /= t;
+		elem[4] /= t;
+		elem[5] /= t;
+		return *this;
 	}
 
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
-	inline matrix<6, 1, _Result> operator/(const matrix<6, 1, _T2>& mat) const
+	inline matrix<6, 6, _Result> operator/(const matrix<6, 6, _T2>& mat) const
 	{
 		_Result m_elem[] =
 		{
-			elem[0][0] / mat.elem[0][0],
-			elem[1][0] / mat.elem[1][0],
-			elem[2][0] / mat.elem[2][0],
-			elem[3][0] / mat.elem[3][0],
-			elem[4][0] / mat.elem[4][0],
-			elem[5][0] / mat.elem[5][0]
+			elem[0][0] / mat.elem[0][0], elem[0][1] / mat.elem[0][1], elem[0][2] / mat.elem[0][2], elem[0][3] / mat.elem[0][3], elem[0][4] / mat.elem[0][4], elem[0][5] / mat.elem[0][5],
+			elem[1][0] / mat.elem[1][0], elem[1][1] / mat.elem[1][1], elem[1][2] / mat.elem[1][2], elem[1][3] / mat.elem[1][3], elem[1][4] / mat.elem[1][4], elem[1][5] / mat.elem[1][5],
+			elem[2][0] / mat.elem[2][0], elem[2][1] / mat.elem[2][1], elem[2][2] / mat.elem[2][2], elem[2][3] / mat.elem[2][3], elem[2][4] / mat.elem[2][4], elem[2][5] / mat.elem[2][5],
+			elem[3][0] / mat.elem[3][0], elem[3][1] / mat.elem[3][1], elem[3][2] / mat.elem[3][2], elem[3][3] / mat.elem[3][3], elem[3][4] / mat.elem[3][4], elem[3][5] / mat.elem[3][5],
+			elem[4][0] / mat.elem[4][0], elem[4][1] / mat.elem[4][1], elem[4][2] / mat.elem[4][2], elem[4][3] / mat.elem[4][3], elem[4][4] / mat.elem[4][4], elem[4][5] / mat.elem[4][5],
+			elem[5][0] / mat.elem[5][0], elem[5][1] / mat.elem[5][1], elem[5][2] / mat.elem[5][2], elem[5][3] / mat.elem[5][3], elem[5][4] / mat.elem[5][4], elem[5][5] / mat.elem[5][5]
 		};
-		return tplmp::cast<matrix<6, 1, _Result> >(m_elem);
+		return tplmp::cast<matrix<6, 6, _Result> >(m_elem);
 	}
 
 	inline vector<6, _T> column(size_t column) const
@@ -1569,72 +1886,820 @@ public:
 		return tplmp::cast<vector<6, _T> >(v_elem);
 	}
 
-	inline matrix<1, 6, _T> operator~() const
+	inline matrix<6, 6, _T> operator~() const
 	{
 		_T m_elem[] =
 		{
-			elem[0][0], elem[1][0], elem[2][0], elem[3][0], elem[4][0], elem[5][0]
+			elem[0][0], elem[1][0], elem[2][0], elem[3][0], elem[4][0], elem[5][0],
+			elem[0][1], elem[1][1], elem[2][1], elem[3][1], elem[4][1], elem[5][1],
+			elem[0][2], elem[1][2], elem[2][2], elem[3][2], elem[4][2], elem[5][2],
+			elem[0][3], elem[1][3], elem[2][3], elem[3][3], elem[4][3], elem[5][3],
+			elem[0][4], elem[1][4], elem[2][4], elem[3][4], elem[4][4], elem[5][4],
+			elem[0][5], elem[1][5], elem[2][5], elem[3][5], elem[4][5], elem[5][5]
 		};
-		return tplmp::cast<matrix<1, 6, _T> >(m_elem);
+		return tplmp::cast<matrix<6, 6, _T> >(m_elem);
 	}
 
-	inline static matrix<6, 1, _T> zero()
+	inline static matrix<6, 6, _T> all(_T value)
 	{
 		_T m_elem[] =
 		{
-			_T(0),
-			_T(0),
-			_T(0),
-			_T(0),
-			_T(0),
-			_T(0)
+			value, value, value, value, value, value,
+			value, value, value, value, value, value,
+			value, value, value, value, value, value,
+			value, value, value, value, value, value,
+			value, value, value, value, value, value,
+			value, value, value, value, value, value
 		};
-		return tplmp::cast<matrix<6, 1, _T> >(m_elem);
+		return tplmp::cast<matrix<6, 6, _T> >(m_elem);
 	}
-
-	inline static matrix<6, 1, _T> one()
-	{
-		_T m_elem[] =
-		{
-			_T(1),
-			_T(1),
-			_T(1),
-			_T(1),
-			_T(1),
-			_T(1)
-		};
-		return tplmp::cast<matrix<6, 1, _T> >(m_elem);
-	}
+	__def_matrix_zero_one__(_T, 6, 6)
 
 	inline operator std::string() const
 	{
 		std::ostringstream oss;
-		oss << '[' << elem[0][0] << "]\n"
-		<< '[' << elem[1][0] << "]\n"
-		<< '[' << elem[2][0] << "]\n"
-		<< '[' << elem[3][0] << "]\n"
-		<< '[' << elem[4][0] << "]\n"
-		<< '[' << elem[5][0] << ']';
+		oss << '[' << elem[0][0] << '\t' << elem[0][1] << '\t' << elem[0][2] << '\t' << elem[0][3] << '\t' << elem[0][4] << '\t' << elem[0][5] << "]\n"
+		<< '[' << elem[1][0] << '\t' << elem[1][1] << '\t' << elem[1][2] << '\t' << elem[1][3] << '\t' << elem[1][4] << '\t' << elem[1][5] << "]\n"
+		<< '[' << elem[2][0] << '\t' << elem[2][1] << '\t' << elem[2][2] << '\t' << elem[2][3] << '\t' << elem[2][4] << '\t' << elem[2][5] << "]\n"
+		<< '[' << elem[3][0] << '\t' << elem[3][1] << '\t' << elem[3][2] << '\t' << elem[3][3] << '\t' << elem[3][4] << '\t' << elem[3][5] << "]\n"
+		<< '[' << elem[4][0] << '\t' << elem[4][1] << '\t' << elem[4][2] << '\t' << elem[4][3] << '\t' << elem[4][4] << '\t' << elem[4][5] << "]\n"
+		<< '[' << elem[5][0] << '\t' << elem[5][1] << '\t' << elem[5][2] << '\t' << elem[5][3] << '\t' << elem[5][4] << '\t' << elem[5][5] << ']';
 		return oss.str();
 	}
 };
 
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
-inline matrix<6, 1, _Result> hadamard(const matrix<6, 1, _T1>& mat1, const matrix<6, 1, _T2>& mat2)
+inline matrix<6, 6, _Result> operator*(_T1 t, const matrix<6, 6, _T2>& mat)
+{
+	_Result m_elem[] = {
+			t * mat.elem[0][0], t * mat.elem[0][1], t * mat.elem[0][2], t * mat.elem[0][3], t * mat.elem[0][4], t * mat.elem[0][5],
+			t * mat.elem[1][0], t * mat.elem[1][1], t * mat.elem[1][2], t * mat.elem[1][3], t * mat.elem[1][4], t * mat.elem[1][5],
+			t * mat.elem[2][0], t * mat.elem[2][1], t * mat.elem[2][2], t * mat.elem[2][3], t * mat.elem[2][4], t * mat.elem[2][5],
+			t * mat.elem[3][0], t * mat.elem[3][1], t * mat.elem[3][2], t * mat.elem[3][3], t * mat.elem[3][4], t * mat.elem[3][5],
+			t * mat.elem[4][0], t * mat.elem[4][1], t * mat.elem[4][2], t * mat.elem[4][3], t * mat.elem[4][4], t * mat.elem[4][5],
+			t * mat.elem[5][0], t * mat.elem[5][1], t * mat.elem[5][2], t * mat.elem[5][3], t * mat.elem[5][4], t * mat.elem[5][5]
+	};
+	return tplmp::cast<matrix<6, 6, _Result> >(m_elem);
+}
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
+inline matrix<6, 6, _Result> operator/(_T1 t, const matrix<6, 6, _T2>& mat)
+{
+	_Result m_elem[] = {
+			t / mat.elem[0][0], t / mat.elem[0][1], t / mat.elem[0][2], t / mat.elem[0][3], t / mat.elem[0][4], t / mat.elem[0][5],
+			t / mat.elem[1][0], t / mat.elem[1][1], t / mat.elem[1][2], t / mat.elem[1][3], t / mat.elem[1][4], t / mat.elem[1][5],
+			t / mat.elem[2][0], t / mat.elem[2][1], t / mat.elem[2][2], t / mat.elem[2][3], t / mat.elem[2][4], t / mat.elem[2][5],
+			t / mat.elem[3][0], t / mat.elem[3][1], t / mat.elem[3][2], t / mat.elem[3][3], t / mat.elem[3][4], t / mat.elem[3][5],
+			t / mat.elem[4][0], t / mat.elem[4][1], t / mat.elem[4][2], t / mat.elem[4][3], t / mat.elem[4][4], t / mat.elem[4][5],
+			t / mat.elem[5][0], t / mat.elem[5][1], t / mat.elem[5][2], t / mat.elem[5][3], t / mat.elem[5][4], t / mat.elem[5][5]
+	};
+	return tplmp::cast<matrix<6, 6, _Result> >(m_elem);
+}
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline matrix<6, 6, _Result> hadamard(const matrix<6, 6, _T1>& mat1, const matrix<6, 6, _T2>& mat2)
+{
+	_Result m_elem[] = {
+			mat1.elem[0][0] * mat2.elem[0][0], mat1.elem[0][1] * mat2.elem[0][1], mat1.elem[0][2] * mat2.elem[0][2], mat1.elem[0][3] * mat2.elem[0][3], mat1.elem[0][4] * mat2.elem[0][4], mat1.elem[0][5] * mat2.elem[0][5],
+			mat1.elem[1][0] * mat2.elem[1][0], mat1.elem[1][1] * mat2.elem[1][1], mat1.elem[1][2] * mat2.elem[1][2], mat1.elem[1][3] * mat2.elem[1][3], mat1.elem[1][4] * mat2.elem[1][4], mat1.elem[1][5] * mat2.elem[1][5],
+			mat1.elem[2][0] * mat2.elem[2][0], mat1.elem[2][1] * mat2.elem[2][1], mat1.elem[2][2] * mat2.elem[2][2], mat1.elem[2][3] * mat2.elem[2][3], mat1.elem[2][4] * mat2.elem[2][4], mat1.elem[2][5] * mat2.elem[2][5],
+			mat1.elem[3][0] * mat2.elem[3][0], mat1.elem[3][1] * mat2.elem[3][1], mat1.elem[3][2] * mat2.elem[3][2], mat1.elem[3][3] * mat2.elem[3][3], mat1.elem[3][4] * mat2.elem[3][4], mat1.elem[3][5] * mat2.elem[3][5],
+			mat1.elem[4][0] * mat2.elem[4][0], mat1.elem[4][1] * mat2.elem[4][1], mat1.elem[4][2] * mat2.elem[4][2], mat1.elem[4][3] * mat2.elem[4][3], mat1.elem[4][4] * mat2.elem[4][4], mat1.elem[4][5] * mat2.elem[4][5],
+			mat1.elem[5][0] * mat2.elem[5][0], mat1.elem[5][1] * mat2.elem[5][1], mat1.elem[5][2] * mat2.elem[5][2], mat1.elem[5][3] * mat2.elem[5][3], mat1.elem[5][4] * mat2.elem[5][4], mat1.elem[5][5] * mat2.elem[5][5]
+	};
+	return tplmp::cast<matrix<6, 6, _Result> >(m_elem);
+}
+
+//7x7矩阵特化
+//用于分析力学相空间计算
+template<typename _T>
+class matrix<7, 7, _T>
+{
+public:
+	__def_matrix_members__(_T, 7, 7)
+
+	__def_matrix_op_cast_ptr__(_T)
+
+	__def_matrix_op_cast_vec_ptr__(_T, 49)
+
+	__def_matrix_op_row_vec__(_T, 7)
+
+	__def_matrix_op_partial_pivot_row__(_T, 7)
+
+	__def_matrix_op_complete_pivot_coord__(_T, 7, 7)
+
+	//交换行
+	__def_matrix_op_swap_row__(_T, 7, 7)
+
+	__def_matrix_op_sum__(_T, 7, 7)
+
+	__def_matrix_op_partition__(_T, 7, 7)
+
+	__def_matrix_op_mask__(_T, 7, 7)
+
+	inline matrix<7,
+	7, _T>& swap_column(size_t column1, size_t column2)
+	{
+		return *this;
+	}
+
+	template<typename _T2>
+	inline operator matrix<7, 7, _T2>()
+	{
+		_T2 m_elem[] = {
+				(_T2)elem[0][0], (_T2)elem[0][1], (_T2)elem[0][2], (_T2)elem[0][3], (_T2)elem[0][4], (_T2)elem[0][5], (_T2)elem[0][6],
+				(_T2)elem[1][0], (_T2)elem[1][1], (_T2)elem[1][2], (_T2)elem[1][3], (_T2)elem[1][4], (_T2)elem[1][5], (_T2)elem[1][6],
+				(_T2)elem[2][0], (_T2)elem[2][1], (_T2)elem[2][2], (_T2)elem[2][3], (_T2)elem[2][4], (_T2)elem[2][5], (_T2)elem[2][6],
+				(_T2)elem[3][0], (_T2)elem[3][1], (_T2)elem[3][2], (_T2)elem[3][3], (_T2)elem[3][4], (_T2)elem[3][5], (_T2)elem[3][6],
+				(_T2)elem[4][0], (_T2)elem[4][1], (_T2)elem[4][2], (_T2)elem[4][3], (_T2)elem[4][4], (_T2)elem[4][5], (_T2)elem[4][6],
+				(_T2)elem[5][0], (_T2)elem[5][1], (_T2)elem[5][2], (_T2)elem[5][3], (_T2)elem[5][4], (_T2)elem[5][5], (_T2)elem[5][6],
+				(_T2)elem[6][0], (_T2)elem[6][1], (_T2)elem[6][2], (_T2)elem[6][3], (_T2)elem[6][4], (_T2)elem[6][5], (_T2)elem[6][6]
+		};
+		return tplmp::cast<matrix<7, 7, _T2> >(m_elem);
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() + tplmp::decl<_T2>::val())>
+	inline matrix<7, 7, _Result> operator+(const matrix<7, 7, _T2>& mat) const
+	{
+		_Result m_elem[] = {
+				elem[0][0] + mat.elem[0][0], elem[0][1] + mat.elem[0][1], elem[0][2] + mat.elem[0][2], elem[0][3] + mat.elem[0][3], elem[0][4] + mat.elem[0][4], elem[0][5] + mat.elem[0][5], elem[0][6] + mat.elem[0][6],
+				elem[1][0] + mat.elem[1][0], elem[1][1] + mat.elem[1][1], elem[1][2] + mat.elem[1][2], elem[1][3] + mat.elem[1][3], elem[1][4] + mat.elem[1][4], elem[1][5] + mat.elem[1][5], elem[1][6] + mat.elem[1][6],
+				elem[2][0] + mat.elem[2][0], elem[2][1] + mat.elem[2][1], elem[2][2] + mat.elem[2][2], elem[2][3] + mat.elem[2][3], elem[2][4] + mat.elem[2][4], elem[2][5] + mat.elem[2][5], elem[2][6] + mat.elem[2][6],
+				elem[3][0] + mat.elem[3][0], elem[3][1] + mat.elem[3][1], elem[3][2] + mat.elem[3][2], elem[3][3] + mat.elem[3][3], elem[3][4] + mat.elem[3][4], elem[3][5] + mat.elem[3][5], elem[3][6] + mat.elem[3][6],
+				elem[4][0] + mat.elem[4][0], elem[4][1] + mat.elem[4][1], elem[4][2] + mat.elem[4][2], elem[4][3] + mat.elem[4][3], elem[4][4] + mat.elem[4][4], elem[4][5] + mat.elem[4][5], elem[4][6] + mat.elem[4][6],
+				elem[5][0] + mat.elem[5][0], elem[5][1] + mat.elem[5][1], elem[5][2] + mat.elem[5][2], elem[5][3] + mat.elem[5][3], elem[5][4] + mat.elem[5][4], elem[5][5] + mat.elem[5][5], elem[5][6] + mat.elem[5][6],
+				elem[6][0] + mat.elem[6][0], elem[6][1] + mat.elem[6][1], elem[6][2] + mat.elem[6][2], elem[6][3] + mat.elem[6][3], elem[6][4] + mat.elem[6][4], elem[6][5] + mat.elem[6][5], elem[6][6] + mat.elem[6][6]
+		};
+		return tplmp::cast<matrix<7, 7, _Result> >(m_elem);
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() - tplmp::decl<_T2>::val())>
+	inline matrix<7, 7, _Result> operator-(const matrix<7, 7, _T2>& mat) const
+	{
+		_Result m_elem[] = {
+				elem[0][0] - mat.elem[0][0], elem[0][1] - mat.elem[0][1], elem[0][2] - mat.elem[0][2], elem[0][3] - mat.elem[0][3], elem[0][4] - mat.elem[0][4], elem[0][5] - mat.elem[0][5], elem[0][6] - mat.elem[0][6],
+				elem[1][0] - mat.elem[1][0], elem[1][1] - mat.elem[1][1], elem[1][2] - mat.elem[1][2], elem[1][3] - mat.elem[1][3], elem[1][4] - mat.elem[1][4], elem[1][5] - mat.elem[1][5], elem[1][6] - mat.elem[1][6],
+				elem[2][0] - mat.elem[2][0], elem[2][1] - mat.elem[2][1], elem[2][2] - mat.elem[2][2], elem[2][3] - mat.elem[2][3], elem[2][4] - mat.elem[2][4], elem[2][5] - mat.elem[2][5], elem[2][6] - mat.elem[2][6],
+				elem[3][0] - mat.elem[3][0], elem[3][1] - mat.elem[3][1], elem[3][2] - mat.elem[3][2], elem[3][3] - mat.elem[3][3], elem[3][4] - mat.elem[3][4], elem[3][5] - mat.elem[3][5], elem[3][6] - mat.elem[3][6],
+				elem[4][0] - mat.elem[4][0], elem[4][1] - mat.elem[4][1], elem[4][2] - mat.elem[4][2], elem[4][3] - mat.elem[4][3], elem[4][4] - mat.elem[4][4], elem[4][5] - mat.elem[4][5], elem[4][6] - mat.elem[4][6],
+				elem[5][0] - mat.elem[5][0], elem[5][1] - mat.elem[5][1], elem[5][2] - mat.elem[5][2], elem[5][3] - mat.elem[5][3], elem[5][4] - mat.elem[5][4], elem[5][5] - mat.elem[5][5], elem[5][6] - mat.elem[5][6],
+				elem[6][0] - mat.elem[6][0], elem[6][1] - mat.elem[6][1], elem[6][2] - mat.elem[6][2], elem[6][3] - mat.elem[6][3], elem[6][4] - mat.elem[6][4], elem[6][5] - mat.elem[6][5], elem[6][6] - mat.elem[6][6]
+		};
+		return tplmp::cast<matrix<7, 7, _Result> >(m_elem);
+	}
+
+	inline matrix<7, 7, _T> operator-() const
+	{
+		_T m_elem[] = {
+				-elem[0][0], -elem[0][1], -elem[0][2], -elem[0][3], -elem[0][4], -elem[0][5], -elem[0][6],
+				-elem[1][0], -elem[1][1], -elem[1][2], -elem[1][3], -elem[1][4], -elem[1][5], -elem[1][6],
+				-elem[2][0], -elem[2][1], -elem[2][2], -elem[2][3], -elem[2][4], -elem[2][5], -elem[2][6],
+				-elem[3][0], -elem[3][1], -elem[3][2], -elem[3][3], -elem[3][4], -elem[3][5], -elem[3][6],
+				-elem[4][0], -elem[4][1], -elem[4][2], -elem[4][3], -elem[4][4], -elem[4][5], -elem[4][6],
+				-elem[5][0], -elem[5][1], -elem[5][2], -elem[5][3], -elem[5][4], -elem[5][5], -elem[5][6],
+				-elem[6][0], -elem[6][1], -elem[6][2], -elem[6][3], -elem[6][4], -elem[6][5], -elem[6][6]
+		};
+		return tplmp::cast<matrix<7, 7, _T> >(m_elem);
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
+	inline matrix<7, 7, _Result> operator*(_T2 t) const
+	{
+		_Result m_elem[] = {
+				elem[0][0] * t, elem[0][1] * t, elem[0][2] * t, elem[0][3] * t, elem[0][4] * t, elem[0][5] * t, elem[0][6] * t,
+				elem[1][0] * t, elem[1][1] * t, elem[1][2] * t, elem[1][3] * t, elem[1][4] * t, elem[1][5] * t, elem[1][6] * t,
+				elem[2][0] * t, elem[2][1] * t, elem[2][2] * t, elem[2][3] * t, elem[2][4] * t, elem[2][5] * t, elem[2][6] * t,
+				elem[3][0] * t, elem[3][1] * t, elem[3][2] * t, elem[3][3] * t, elem[3][4] * t, elem[3][5] * t, elem[3][6] * t,
+				elem[4][0] * t, elem[4][1] * t, elem[4][2] * t, elem[4][3] * t, elem[4][4] * t, elem[4][5] * t, elem[4][6] * t,
+				elem[5][0] * t, elem[5][1] * t, elem[5][2] * t, elem[5][3] * t, elem[5][4] * t, elem[5][5] * t, elem[5][6] * t,
+				elem[6][0] * t, elem[6][1] * t, elem[6][2] * t, elem[6][3] * t, elem[6][4] * t, elem[6][5] * t, elem[6][6] * t
+		};
+		return tplmp::cast<matrix<7, 7, _Result> >(m_elem);
+	}
+
+	template<typename _T2>
+	inline matrix<7, 7, _T>& operator*=(const _T2& t)
+	{
+		elem[0] *= t;
+		elem[1] *= t;
+		elem[2] *= t;
+		elem[3] *= t;
+		elem[4] *= t;
+		elem[5] *= t;
+		elem[6] *= t;
+		return *this;
+	}
+
+	__def_matrix_op_matrix_mul__(_T, 7, 7)
+
+	__def_matrix_op_vector_mul__(_T, 7, 7)
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
+	inline matrix<7, 7, _Result> operator/(_T2 t) const
+	{
+		_Result m_elem[] =
+		{
+			elem[0][0] / t, elem[0][1] / t, elem[0][2] / t, elem[0][3] / t, elem[0][4] / t, elem[0][5] / t, elem[0][6] / t,
+			elem[1][0] / t, elem[1][1] / t, elem[1][2] / t, elem[1][3] / t, elem[1][4] / t, elem[1][5] / t, elem[1][6] / t,
+			elem[2][0] / t, elem[2][1] / t, elem[2][2] / t, elem[2][3] / t, elem[2][4] / t, elem[2][5] / t, elem[2][6] / t,
+			elem[3][0] / t, elem[3][1] / t, elem[3][2] / t, elem[3][3] / t, elem[3][4] / t, elem[3][5] / t, elem[3][6] / t,
+			elem[4][0] / t, elem[4][1] / t, elem[4][2] / t, elem[4][3] / t, elem[4][4] / t, elem[4][5] / t, elem[4][6] / t,
+			elem[5][0] / t, elem[5][1] / t, elem[5][2] / t, elem[5][3] / t, elem[5][4] / t, elem[5][5] / t, elem[5][6] / t,
+			elem[6][0] / t, elem[6][1] / t, elem[6][2] / t, elem[6][3] / t, elem[6][4] / t, elem[6][5] / t, elem[6][6] / t
+		};
+		return tplmp::cast<matrix<7, 7, _Result> >(m_elem);
+	}
+
+	template<typename _T2>
+	inline matrix<7, 7, _T>& operator/=(const _T2& t)
+	{
+		elem[0] /= t;
+		elem[1] /= t;
+		elem[2] /= t;
+		elem[3] /= t;
+		elem[4] /= t;
+		elem[5] /= t;
+		elem[6] /= t;
+		return *this;
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
+	inline matrix<7, 7, _Result> operator/(const matrix<7, 7, _T2>& mat) const
+	{
+		_Result m_elem[] =
+		{
+			elem[0][0] / mat.elem[0][0], elem[0][1] / mat.elem[0][1], elem[0][2] / mat.elem[0][2], elem[0][3] / mat.elem[0][3], elem[0][4] / mat.elem[0][4], elem[0][5] / mat.elem[0][5], elem[0][6] / mat.elem[0][6],
+			elem[1][0] / mat.elem[1][0], elem[1][1] / mat.elem[1][1], elem[1][2] / mat.elem[1][2], elem[1][3] / mat.elem[1][3], elem[1][4] / mat.elem[1][4], elem[1][5] / mat.elem[1][5], elem[1][6] / mat.elem[1][6],
+			elem[2][0] / mat.elem[2][0], elem[2][1] / mat.elem[2][1], elem[2][2] / mat.elem[2][2], elem[2][3] / mat.elem[2][3], elem[2][4] / mat.elem[2][4], elem[2][5] / mat.elem[2][5], elem[2][6] / mat.elem[2][6],
+			elem[3][0] / mat.elem[3][0], elem[3][1] / mat.elem[3][1], elem[3][2] / mat.elem[3][2], elem[3][3] / mat.elem[3][3], elem[3][4] / mat.elem[3][4], elem[3][5] / mat.elem[3][5], elem[3][6] / mat.elem[3][6],
+			elem[4][0] / mat.elem[4][0], elem[4][1] / mat.elem[4][1], elem[4][2] / mat.elem[4][2], elem[4][3] / mat.elem[4][3], elem[4][4] / mat.elem[4][4], elem[4][5] / mat.elem[4][5], elem[4][6] / mat.elem[4][6],
+			elem[5][0] / mat.elem[5][0], elem[5][1] / mat.elem[5][1], elem[5][2] / mat.elem[5][2], elem[5][3] / mat.elem[5][3], elem[5][4] / mat.elem[5][4], elem[5][5] / mat.elem[5][5], elem[5][6] / mat.elem[5][6],
+			elem[6][0] / mat.elem[6][0], elem[6][1] / mat.elem[6][1], elem[6][2] / mat.elem[6][2], elem[6][3] / mat.elem[6][3], elem[6][4] / mat.elem[6][4], elem[6][5] / mat.elem[6][5], elem[6][6] / mat.elem[6][6]
+		};
+		return tplmp::cast<matrix<7, 7, _Result> >(m_elem);
+	}
+
+	inline vector<7, _T> column(size_t column) const
+	{
+		_T v_elem[] =
+		{
+			elem[0][column],
+			elem[1][column],
+			elem[2][column],
+			elem[3][column],
+			elem[4][column],
+			elem[5][column],
+			elem[6][column]
+		};
+		return tplmp::cast<vector<7, _T> >(v_elem);
+	}
+
+	inline matrix<7, 7, _T> operator~() const
+	{
+		_T m_elem[] =
+		{
+			elem[0][0], elem[1][0], elem[2][0], elem[3][0], elem[4][0], elem[5][0], elem[6][0],
+			elem[0][1], elem[1][1], elem[2][1], elem[3][1], elem[4][1], elem[5][1], elem[6][1],
+			elem[0][2], elem[1][2], elem[2][2], elem[3][2], elem[4][2], elem[5][2], elem[6][2],
+			elem[0][3], elem[1][3], elem[2][3], elem[3][3], elem[4][3], elem[5][3], elem[6][3],
+			elem[0][4], elem[1][4], elem[2][4], elem[3][4], elem[4][4], elem[5][4], elem[6][4],
+			elem[0][5], elem[1][5], elem[2][5], elem[3][5], elem[4][5], elem[5][5], elem[6][5],
+			elem[0][6], elem[1][6], elem[2][6], elem[3][6], elem[4][6], elem[5][6], elem[6][6]
+		};
+		return tplmp::cast<matrix<7, 7, _T> >(m_elem);
+	}
+
+	inline static matrix<7, 7, _T> all(_T value)
+	{
+		_T m_elem[] =
+		{
+			value, value, value, value, value, value, value,
+			value, value, value, value, value, value, value,
+			value, value, value, value, value, value, value,
+			value, value, value, value, value, value, value,
+			value, value, value, value, value, value, value,
+			value, value, value, value, value, value, value,
+			value, value, value, value, value, value, value
+		};
+		return tplmp::cast<matrix<7, 7, _T> >(m_elem);
+	}
+	__def_matrix_zero_one__(_T, 7, 7)
+
+	inline operator std::string() const
+	{
+		std::ostringstream oss;
+		oss << '[' << elem[0][0] << '\t' << elem[0][1] << '\t' << elem[0][2] << '\t' << elem[0][3] << '\t' << elem[0][4] << '\t' << elem[0][5] << '\t' << elem[0][6] << "]\n"
+		<< '[' << elem[1][0] << '\t' << elem[1][1] << '\t' << elem[1][2] << '\t' << elem[1][3] << '\t' << elem[1][4] << '\t' << elem[1][5] << '\t' << elem[1][6] << "]\n"
+		<< '[' << elem[2][0] << '\t' << elem[2][1] << '\t' << elem[2][2] << '\t' << elem[2][3] << '\t' << elem[2][4] << '\t' << elem[2][5] << '\t' << elem[2][6] << "]\n"
+		<< '[' << elem[3][0] << '\t' << elem[3][1] << '\t' << elem[3][2] << '\t' << elem[3][3] << '\t' << elem[3][4] << '\t' << elem[3][5] << '\t' << elem[3][6] << "]\n"
+		<< '[' << elem[4][0] << '\t' << elem[4][1] << '\t' << elem[4][2] << '\t' << elem[4][3] << '\t' << elem[4][4] << '\t' << elem[4][5] << '\t' << elem[4][6] << "]\n"
+		<< '[' << elem[5][0] << '\t' << elem[5][1] << '\t' << elem[5][2] << '\t' << elem[5][3] << '\t' << elem[5][4] << '\t' << elem[5][5] << '\t' << elem[5][6] << "]\n"
+		<< '[' << elem[6][0] << '\t' << elem[6][1] << '\t' << elem[6][2] << '\t' << elem[6][3] << '\t' << elem[6][4] << '\t' << elem[6][5] << '\t' << elem[6][6] << ']';
+		return oss.str();
+	}
+};
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline matrix<7, 7, _Result> operator*(_T1 t, const matrix<7, 7, _T2>& mat)
+{
+	_Result m_elem[] = {
+			t * mat.elem[0][0], t * mat.elem[0][1], t * mat.elem[0][2], t * mat.elem[0][3], t * mat.elem[0][4], t * mat.elem[0][5], t * mat.elem[0][6],
+			t * mat.elem[1][0], t * mat.elem[1][1], t * mat.elem[1][2], t * mat.elem[1][3], t * mat.elem[1][4], t * mat.elem[1][5], t * mat.elem[1][6],
+			t * mat.elem[2][0], t * mat.elem[2][1], t * mat.elem[2][2], t * mat.elem[2][3], t * mat.elem[2][4], t * mat.elem[2][5], t * mat.elem[2][6],
+			t * mat.elem[3][0], t * mat.elem[3][1], t * mat.elem[3][2], t * mat.elem[3][3], t * mat.elem[3][4], t * mat.elem[3][5], t * mat.elem[3][6],
+			t * mat.elem[4][0], t * mat.elem[4][1], t * mat.elem[4][2], t * mat.elem[4][3], t * mat.elem[4][4], t * mat.elem[4][5], t * mat.elem[4][6],
+			t * mat.elem[5][0], t * mat.elem[5][1], t * mat.elem[5][2], t * mat.elem[5][3], t * mat.elem[5][4], t * mat.elem[5][5], t * mat.elem[5][6],
+			t * mat.elem[6][0], t * mat.elem[6][1], t * mat.elem[6][2], t * mat.elem[6][3], t * mat.elem[6][4], t * mat.elem[6][5], t * mat.elem[6][6]
+	};
+	return tplmp::cast<matrix<7, 7, _Result> >(m_elem);
+}
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
+inline matrix<7, 7, _Result> operator/(_T1 t, const matrix<7, 7, _T2>& mat)
+{
+	_Result m_elem[] = {
+			t / mat.elem[0][0], t / mat.elem[0][1], t / mat.elem[0][2], t / mat.elem[0][3], t / mat.elem[0][4], t / mat.elem[0][5], t / mat.elem[0][6],
+			t / mat.elem[1][0], t / mat.elem[1][1], t / mat.elem[1][2], t / mat.elem[1][3], t / mat.elem[1][4], t / mat.elem[1][5], t / mat.elem[1][6],
+			t / mat.elem[2][0], t / mat.elem[2][1], t / mat.elem[2][2], t / mat.elem[2][3], t / mat.elem[2][4], t / mat.elem[2][5], t / mat.elem[2][6],
+			t / mat.elem[3][0], t / mat.elem[3][1], t / mat.elem[3][2], t / mat.elem[3][3], t / mat.elem[3][4], t / mat.elem[3][5], t / mat.elem[3][6],
+			t / mat.elem[4][0], t / mat.elem[4][1], t / mat.elem[4][2], t / mat.elem[4][3], t / mat.elem[4][4], t / mat.elem[4][5], t / mat.elem[4][6],
+			t / mat.elem[5][0], t / mat.elem[5][1], t / mat.elem[5][2], t / mat.elem[5][3], t / mat.elem[5][4], t / mat.elem[5][5], t / mat.elem[5][6],
+			t / mat.elem[6][0], t / mat.elem[6][1], t / mat.elem[6][2], t / mat.elem[6][3], t / mat.elem[6][4], t / mat.elem[6][5], t / mat.elem[6][6]
+	};
+	return tplmp::cast<matrix<7, 7, _Result> >(m_elem);
+}
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline matrix<7, 7, _Result> hadamard(const matrix<7, 7, _T1>& mat1, const matrix<7, 7, _T2>& mat2)
+{
+	_Result m_elem[] = {
+			mat1.elem[0][0] * mat2.elem[0][0], mat1.elem[0][1] * mat2.elem[0][1], mat1.elem[0][2] * mat2.elem[0][2], mat1.elem[0][3] * mat2.elem[0][3], mat1.elem[0][4] * mat2.elem[0][4], mat1.elem[0][5] * mat2.elem[0][5], mat1.elem[0][6] * mat2.elem[0][6],
+			mat1.elem[1][0] * mat2.elem[1][0], mat1.elem[1][1] * mat2.elem[1][1], mat1.elem[1][2] * mat2.elem[1][2], mat1.elem[1][3] * mat2.elem[1][3], mat1.elem[1][4] * mat2.elem[1][4], mat1.elem[1][5] * mat2.elem[1][5], mat1.elem[1][6] * mat2.elem[1][6],
+			mat1.elem[2][0] * mat2.elem[2][0], mat1.elem[2][1] * mat2.elem[2][1], mat1.elem[2][2] * mat2.elem[2][2], mat1.elem[2][3] * mat2.elem[2][3], mat1.elem[2][4] * mat2.elem[2][4], mat1.elem[2][5] * mat2.elem[2][5], mat1.elem[2][6] * mat2.elem[2][6],
+			mat1.elem[3][0] * mat2.elem[3][0], mat1.elem[3][1] * mat2.elem[3][1], mat1.elem[3][2] * mat2.elem[3][2], mat1.elem[3][3] * mat2.elem[3][3], mat1.elem[3][4] * mat2.elem[3][4], mat1.elem[3][5] * mat2.elem[3][5], mat1.elem[3][6] * mat2.elem[3][6],
+			mat1.elem[4][0] * mat2.elem[4][0], mat1.elem[4][1] * mat2.elem[4][1], mat1.elem[4][2] * mat2.elem[4][2], mat1.elem[4][3] * mat2.elem[4][3], mat1.elem[4][4] * mat2.elem[4][4], mat1.elem[4][5] * mat2.elem[4][5], mat1.elem[4][6] * mat2.elem[4][6],
+			mat1.elem[5][0] * mat2.elem[5][0], mat1.elem[5][1] * mat2.elem[5][1], mat1.elem[5][2] * mat2.elem[5][2], mat1.elem[5][3] * mat2.elem[5][3], mat1.elem[5][4] * mat2.elem[5][4], mat1.elem[5][5] * mat2.elem[5][5], mat1.elem[5][6] * mat2.elem[5][6],
+			mat1.elem[6][0] * mat2.elem[6][0], mat1.elem[6][1] * mat2.elem[6][1], mat1.elem[6][2] * mat2.elem[6][2], mat1.elem[6][3] * mat2.elem[6][3], mat1.elem[6][4] * mat2.elem[6][4], mat1.elem[6][5] * mat2.elem[6][5], mat1.elem[6][6] * mat2.elem[6][6]
+	};
+	return tplmp::cast<matrix<7, 7, _Result> >(m_elem);
+}
+
+//1x6矩阵特化（行向量）
+//用于分析力学相空间计算
+template<typename _T>
+class matrix<1, 6, _T>
+{
+public:
+	__def_matrix_members__(_T, 1, 6)
+
+	__def_matrix_op_cast_ptr__(_T)
+
+	__def_matrix_op_cast_vec_ptr__(_T, 6)
+
+	__def_matrix_op_row_vec__(_T, 6)
+
+	__def_matrix_op_partial_pivot_row__(_T, 6)
+
+	__def_matrix_op_complete_pivot_coord__(_T, 1, 6)
+
+	//交换行
+	__def_matrix_op_swap_row__(_T, 1, 6)
+
+	__def_matrix_op_sum__(_T, 1, 6)
+
+	__def_matrix_op_partition__(_T, 1, 6)
+
+	__def_matrix_op_mask__(_T, 1, 6)
+
+	inline matrix<1,
+	6, _T>& swap_column(size_t column1, size_t column2)
+	{
+		return *this;
+	}
+
+	template<typename _T2>
+	inline operator matrix<1, 6, _T2>()
+	{
+		_T2 m_elem[] = {
+				(_T2)elem[0][0], (_T2)elem[0][1], (_T2)elem[0][2], (_T2)elem[0][3], (_T2)elem[0][4], (_T2)elem[0][5]
+		};
+		return tplmp::cast<matrix<1, 6, _T2> >(m_elem);
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() + tplmp::decl<_T2>::val())>
+	inline matrix<1, 6, _Result> operator+(const matrix<1, 6, _T2>& mat) const
+	{
+		_Result m_elem[] = {
+				elem[0][0] + mat.elem[0][0],
+				elem[0][1] + mat.elem[0][1],
+				elem[0][2] + mat.elem[0][2],
+				elem[0][3] + mat.elem[0][3],
+				elem[0][4] + mat.elem[0][4],
+				elem[0][5] + mat.elem[0][5]
+		};
+		return tplmp::cast<matrix<1, 6, _Result> >(m_elem);
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() - tplmp::decl<_T2>::val())>
+	inline matrix<1, 6, _Result> operator-(const matrix<1, 6, _T2>& mat) const
+	{
+		_Result m_elem[] = {
+				elem[0][0] - mat.elem[0][0],
+				elem[0][1] - mat.elem[0][1],
+				elem[0][2] - mat.elem[0][2],
+				elem[0][3] - mat.elem[0][3],
+				elem[0][4] - mat.elem[0][4],
+				elem[0][5] - mat.elem[0][5]
+		};
+		return tplmp::cast<matrix<1, 6, _Result> >(m_elem);
+	}
+
+	inline matrix<1, 6, _T> operator-() const
+	{
+		_T m_elem[] = {
+				-elem[0][0],
+				-elem[0][1],
+				-elem[0][2],
+				-elem[0][3],
+				-elem[0][4],
+				-elem[0][5]
+		};
+		return tplmp::cast<matrix<1, 6, _T> >(m_elem);
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
+	inline matrix<1, 6, _Result> operator*(_T2 t) const
+	{
+		_Result m_elem[] = {
+				elem[0][0] * t,
+				elem[0][1] * t,
+				elem[0][2] * t,
+				elem[0][3] * t,
+				elem[0][4] * t,
+				elem[0][5] * t
+		};
+		return tplmp::cast<matrix<1, 6, _Result> >(m_elem);
+	}
+
+	template<typename _T2>
+	inline matrix<1, 6, _T>& operator*=(const _T2& t)
+	{
+		elem[0] *= t;
+		return *this;
+	}
+
+	__def_matrix_op_matrix_mul__(_T, 1, 6)
+
+	__def_matrix_op_vector_mul__(_T, 1, 6)
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
+	inline matrix<1, 6, _Result> operator/(_T2 t) const
+	{
+		_Result m_elem[] =
+		{
+			elem[0][0] / t,
+			elem[0][1] / t,
+			elem[0][2] / t,
+			elem[0][3] / t,
+			elem[0][4] / t,
+			elem[0][5] / t
+		};
+		return tplmp::cast<matrix<1, 6, _Result> >(m_elem);
+	}
+
+	template<typename _T2>
+	inline matrix<1, 6, _T>& operator/=(const _T2& t)
+	{
+		elem[0] /= t;
+		return *this;
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
+	inline matrix<1, 6, _Result> operator/(const matrix<1, 6, _T2>& mat) const
+	{
+		_Result m_elem[] =
+		{
+			elem[0][0] / mat.elem[0][0],
+			elem[0][1] / mat.elem[0][1],
+			elem[0][2] / mat.elem[0][2],
+			elem[0][3] / mat.elem[0][3],
+			elem[0][4] / mat.elem[0][4],
+			elem[0][5] / mat.elem[0][5]
+		};
+		return tplmp::cast<matrix<1, 6, _Result> >(m_elem);
+	}
+
+	inline vector<1, _T> column(size_t column) const
+	{
+		_T v_elem[] =
+		{
+			elem[0][column]
+		};
+		return tplmp::cast<vector<1, _T> >(v_elem);
+	}
+
+	inline matrix<6, 1, _T> operator~() const
+	{
+		_T m_elem[] =
+		{
+			elem[0][0],
+			elem[0][1],
+			elem[0][2],
+			elem[0][3],
+			elem[0][4],
+			elem[0][5]
+		};
+		return tplmp::cast<matrix<6, 1, _T> >(m_elem);
+	}
+
+	inline static matrix<1, 6, _T> all(_T value)
+	{
+		_T m_elem[] =
+		{
+			value, value, value, value, value, value
+		};
+		return tplmp::cast<matrix<1, 6, _T> >(m_elem);
+	}
+	__def_matrix_zero_one__(_T, 1, 6)
+
+	inline operator std::string() const
+	{
+		std::ostringstream oss;
+		oss << '[' << elem[0][0] << '\t' << elem[0][1] << '\t' << elem[0][2] << '\t' << elem[0][3] << '\t' << elem[0][4] << '\t' << elem[0][5] << ']';
+		return oss.str();
+	}
+};
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline matrix<1, 6, _Result> operator*(_T1 t, const matrix<1, 6, _T2>& mat)
+{
+	_Result m_elem[] = {
+			t * mat.elem[0][0], t * mat.elem[0][1], t * mat.elem[0][2],
+			t * mat.elem[0][3], t * mat.elem[0][4], t * mat.elem[0][5]
+	};
+	return tplmp::cast<matrix<1, 6, _Result> >(m_elem);
+}
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
+inline matrix<1, 6, _Result> operator/(_T1 t, const matrix<1, 6, _T2>& mat)
+{
+	_Result m_elem[] = {
+			t / mat.elem[0][0], t / mat.elem[0][1], t / mat.elem[0][2],
+			t / mat.elem[0][3], t / mat.elem[0][4], t / mat.elem[0][5]
+	};
+	return tplmp::cast<matrix<1, 6, _Result> >(m_elem);
+}
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline matrix<1, 6, _Result> hadamard(const matrix<1, 6, _T1>& mat1, const matrix<1, 6, _T2>& mat2)
 {
 	_Result m_elem[] = {
 			mat1.elem[0][0] * mat2.elem[0][0],
-			mat1.elem[1][0] * mat2.elem[1][0],
-			mat1.elem[2][0] * mat2.elem[2][0],
-			mat1.elem[3][0] * mat2.elem[3][0],
-			mat1.elem[4][0] * mat2.elem[4][0],
-			mat1.elem[5][0] * mat2.elem[5][0]
+			mat1.elem[0][1] * mat2.elem[0][1],
+			mat1.elem[0][2] * mat2.elem[0][2],
+			mat1.elem[0][3] * mat2.elem[0][3],
+			mat1.elem[0][4] * mat2.elem[0][4],
+			mat1.elem[0][5] * mat2.elem[0][5]
 	};
-	return tplmp::cast<matrix<6, 1, _Result> >(m_elem);
+	return tplmp::cast<matrix<1, 6, _Result> >(m_elem);
+}
+
+//1x7矩阵特化（行向量）
+//用于分析力学相空间计算
+template<typename _T>
+class matrix<1, 7, _T>
+{
+public:
+	__def_matrix_members__(_T, 1, 7)
+
+	__def_matrix_op_cast_ptr__(_T)
+
+	__def_matrix_op_cast_vec_ptr__(_T, 7)
+
+	__def_matrix_op_row_vec__(_T, 7)
+
+	__def_matrix_op_partial_pivot_row__(_T, 7)
+
+	__def_matrix_op_complete_pivot_coord__(_T, 1, 7)
+
+	//交换行
+	__def_matrix_op_swap_row__(_T, 1, 7)
+
+	__def_matrix_op_sum__(_T, 1, 7)
+
+	__def_matrix_op_partition__(_T, 1, 7)
+
+	__def_matrix_op_mask__(_T, 1, 7)
+
+	inline matrix<1,
+	7, _T>& swap_column(size_t column1, size_t column2)
+	{
+		return *this;
+	}
+
+	template<typename _T2>
+	inline operator matrix<1, 7, _T2>()
+	{
+		_T2 m_elem[] = {
+				(_T2)elem[0][0], (_T2)elem[0][1], (_T2)elem[0][2], (_T2)elem[0][3], (_T2)elem[0][4], (_T2)elem[0][5], (_T2)elem[0][6]
+		};
+		return tplmp::cast<matrix<1, 7, _T2> >(m_elem);
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() + tplmp::decl<_T2>::val())>
+	inline matrix<1, 7, _Result> operator+(const matrix<1, 7, _T2>& mat) const
+	{
+		_Result m_elem[] = {
+				elem[0][0] + mat.elem[0][0],
+				elem[0][1] + mat.elem[0][1],
+				elem[0][2] + mat.elem[0][2],
+				elem[0][3] + mat.elem[0][3],
+				elem[0][4] + mat.elem[0][4],
+				elem[0][5] + mat.elem[0][5],
+				elem[0][6] + mat.elem[0][6]
+		};
+		return tplmp::cast<matrix<1, 7, _Result> >(m_elem);
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() - tplmp::decl<_T2>::val())>
+	inline matrix<1, 7, _Result> operator-(const matrix<1, 7, _T2>& mat) const
+	{
+		_Result m_elem[] = {
+				elem[0][0] - mat.elem[0][0],
+				elem[0][1] - mat.elem[0][1],
+				elem[0][2] - mat.elem[0][2],
+				elem[0][3] - mat.elem[0][3],
+				elem[0][4] - mat.elem[0][4],
+				elem[0][5] - mat.elem[0][5],
+				elem[0][6] - mat.elem[0][6]
+		};
+		return tplmp::cast<matrix<1, 7, _Result> >(m_elem);
+	}
+
+	inline matrix<1, 7, _T> operator-() const
+	{
+		_T m_elem[] = {
+				-elem[0][0],
+				-elem[0][1],
+				-elem[0][2],
+				-elem[0][3],
+				-elem[0][4],
+				-elem[0][5],
+				-elem[0][6]
+		};
+		return tplmp::cast<matrix<1, 7, _T> >(m_elem);
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
+	inline matrix<1, 7, _Result> operator*(_T2 t) const
+	{
+		_Result m_elem[] = {
+				elem[0][0] * t,
+				elem[0][1] * t,
+				elem[0][2] * t,
+				elem[0][3] * t,
+				elem[0][4] * t,
+				elem[0][5] * t,
+				elem[0][6] * t
+		};
+		return tplmp::cast<matrix<1, 7, _Result> >(m_elem);
+	}
+
+	template<typename _T2>
+	inline matrix<1, 7, _T>& operator*=(const _T2& t)
+	{
+		elem[0] *= t;
+		return *this;
+	}
+
+	__def_matrix_op_matrix_mul__(_T, 1, 7)
+
+	__def_matrix_op_vector_mul__(_T, 1, 7)
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
+	inline matrix<1, 7, _Result> operator/(_T2 t) const
+	{
+		_Result m_elem[] =
+		{
+			elem[0][0] / t,
+			elem[0][1] / t,
+			elem[0][2] / t,
+			elem[0][3] / t,
+			elem[0][4] / t,
+			elem[0][5] / t,
+			elem[0][6] / t
+		};
+		return tplmp::cast<matrix<1, 7, _Result> >(m_elem);
+	}
+
+	template<typename _T2>
+	inline matrix<1, 7, _T>& operator/=(const _T2& t)
+	{
+		elem[0] /= t;
+		return *this;
+	}
+
+	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
+	inline matrix<1, 7, _Result> operator/(const matrix<1, 7, _T2>& mat) const
+	{
+		_Result m_elem[] =
+		{
+			elem[0][0] / mat.elem[0][0],
+			elem[0][1] / mat.elem[0][1],
+			elem[0][2] / mat.elem[0][2],
+			elem[0][3] / mat.elem[0][3],
+			elem[0][4] / mat.elem[0][4],
+			elem[0][5] / mat.elem[0][5],
+			elem[0][6] / mat.elem[0][6]
+		};
+		return tplmp::cast<matrix<1, 7, _Result> >(m_elem);
+	}
+
+	inline vector<1, _T> column(size_t column) const
+	{
+		_T v_elem[] =
+		{
+			elem[0][column]
+		};
+		return tplmp::cast<vector<1, _T> >(v_elem);
+	}
+
+	inline matrix<7, 1, _T> operator~() const
+	{
+		_T m_elem[] =
+		{
+			elem[0][0],
+			elem[0][1],
+			elem[0][2],
+			elem[0][3],
+			elem[0][4],
+			elem[0][5],
+			elem[0][6]
+		};
+		return tplmp::cast<matrix<7, 1, _T> >(m_elem);
+	}
+
+	inline static matrix<1, 7, _T> all(_T value)
+	{
+		_T m_elem[] =
+		{
+			value, value, value, value, value, value, value
+		};
+		return tplmp::cast<matrix<1, 7, _T> >(m_elem);
+	}
+	__def_matrix_zero_one__(_T, 1, 7)
+
+	inline operator std::string() const
+	{
+		std::ostringstream oss;
+		oss << '[' << elem[0][0] << '\t' << elem[0][1] << '\t' << elem[0][2] << '\t' << elem[0][3] << '\t' << elem[0][4] << '\t' << elem[0][5] << '\t' << elem[0][6] << ']';
+		return oss.str();
+	}
+};
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline matrix<1, 7, _Result> operator*(_T1 t, const matrix<1, 7, _T2>& mat)
+{
+	_Result m_elem[] = {
+			t * mat.elem[0][0], t * mat.elem[0][1], t * mat.elem[0][2],
+			t * mat.elem[0][3], t * mat.elem[0][4], t * mat.elem[0][5],
+			t * mat.elem[0][6]
+	};
+	return tplmp::cast<matrix<1, 7, _Result> >(m_elem);
+}
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
+inline matrix<1, 7, _Result> operator/(_T1 t, const matrix<1, 7, _T2>& mat)
+{
+	_Result m_elem[] = {
+			t / mat.elem[0][0], t / mat.elem[0][1], t / mat.elem[0][2],
+			t / mat.elem[0][3], t / mat.elem[0][4], t / mat.elem[0][5],
+			t / mat.elem[0][6]
+	};
+	return tplmp::cast<matrix<1, 7, _Result> >(m_elem);
+}
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline matrix<1, 7, _Result> hadamard(const matrix<1, 7, _T1>& mat1, const matrix<1, 7, _T2>& mat2)
+{
+	_Result m_elem[] = {
+			mat1.elem[0][0] * mat2.elem[0][0],
+			mat1.elem[0][1] * mat2.elem[0][1],
+			mat1.elem[0][2] * mat2.elem[0][2],
+			mat1.elem[0][3] * mat2.elem[0][3],
+			mat1.elem[0][4] * mat2.elem[0][4],
+			mat1.elem[0][5] * mat2.elem[0][5],
+			mat1.elem[0][6] * mat2.elem[0][6]
+	};
+	return tplmp::cast<matrix<1, 7, _Result> >(m_elem);
 }
 
 template<typename _T>
 using matrix1x1 = matrix<1, 1, _T>;
+template<typename _T>
+using matrix1x6 = matrix<1, 6, _T>;
+template<typename _T>
+using matrix1x7 = matrix<1, 7, _T>;
 template<typename _T>
 using matrix2x2 = matrix<2, 2, _T>;
 template<typename _T>
@@ -1644,27 +2709,38 @@ using matrix4x4 = matrix<4, 4, _T>;
 template<typename _T>
 using matrix3x4 = matrix<3, 4, _T>;
 template<typename _T>
-using matrix6x1 = matrix<6, 1, _T>;
+using matrix6x6 = matrix<6, 6, _T>;
+template<typename _T>
+using matrix7x7 = matrix<7, 7, _T>;
 
 using matrix1x1f = matrix1x1<float>;
+using matrix1x6f = matrix1x6<float>;
+using matrix1x7f = matrix1x7<float>;
 using matrix2x2f = matrix2x2<float>;
 using matrix3x3f = matrix3x3<float>;
 using matrix3x4f = matrix3x4<float>;
 using matrix4x4f = matrix4x4<float>;
-using matrix6x1f = matrix6x1<float>;
+using matrix6x6f = matrix6x6<float>;
+using matrix7x7f = matrix7x7<float>;
 
 using matrix1x1d = matrix1x1<double>;
+using matrix1x6d = matrix1x6<double>;
+using matrix1x7d = matrix1x7<double>;
 using matrix2x2d = matrix2x2<double>;
 using matrix3x3d = matrix3x3<double>;
 using matrix3x4d = matrix3x4<double>;
 using matrix4x4d = matrix4x4<double>;
-using matrix6x1d = matrix6x1<double>;
+using matrix6x6d = matrix6x6<double>;
+using matrix7x7d = matrix7x7<double>;
 
 using matrix1x1q = matrix1x1<__float128>;
+using matrix1x6q = matrix1x6<__float128>;
+using matrix1x7q = matrix1x7<__float128>;
 using matrix2x2q = matrix2x2<__float128>;
 using matrix3x3q = matrix3x3<__float128>;
 using matrix3x4q = matrix3x4<__float128>;
 using matrix4x4q = matrix4x4<__float128>;
-using matrix6x1q = matrix6x1<__float128>;
+using matrix6x6q = matrix6x6<__float128>;
+using matrix7x7q = matrix7x7<__float128>;
 }
 #endif//_MATH_MATRIX

@@ -69,6 +69,20 @@ inline __float128 ln(__float128 x)
 	return logq(x);
 }
 
+template<typename _T>
+inline _T ln2(void)
+{
+	static _T val = math::ln<_T>(_T(2));
+	return val;
+}
+
+template<typename _T>
+inline _T ln10(void)
+{
+	static _T val = math::ln<_T>(_T(10));
+	return val;
+}
+
 /**
  * 常用对数
  */
