@@ -14,8 +14,6 @@
 
 namespace math
 {
-namespace auto_diff
-{
 /**
  * @brief 计算中间值，包括函数值和偏导数值。
  * 表示_InDim元_OutDim维向量函数。当_OutDim==1时退化为标量函数。
@@ -24,22 +22,22 @@ namespace auto_diff
 template<size_t _OutDim, size_t _InDim, typename _T>
 struct ad_point
 {
-	math::vector<_OutDim, _T> value; //多元函数值，即坐标，列向量
-	math::matrix<_OutDim, _InDim, _T> derivative; //多元向量函数导数，即Jacobi矩阵，每个行向量都是对应坐标的梯度
+	vector<_OutDim, _T> value; //多元函数值，即坐标，列向量
+	matrix<_OutDim, _InDim, _T> derivative; //多元向量函数导数，即Jacobi矩阵，每个行向量都是对应坐标的梯度
 
 	inline ad_point() = default;
 
-	inline ad_point(const math::vector<_OutDim, _T>& c) :
+	inline ad_point(const vector<_OutDim, _T>& c) :
 			value(c)
 	{
 	}
 
-	inline ad_point(const math::matrix<_OutDim, _InDim, _T>& d) :
+	inline ad_point(const matrix<_OutDim, _InDim, _T>& d) :
 			derivative(d)
 	{
 	}
 
-	inline ad_point(const math::vector<_OutDim, _T>& c, const math::matrix<_OutDim, _InDim, _T>& d) :
+	inline ad_point(const vector<_OutDim, _T>& c, const matrix<_OutDim, _InDim, _T>& d) :
 			value(c), derivative(d)
 	{
 	}
@@ -47,7 +45,12 @@ struct ad_point
 	/**
 	 * @brief 隐式转换到坐标
 	 */
-	inline operator math::vector<_OutDim, _T>()
+	inline operator vector<_OutDim, _T>&()
+	{
+		return value;
+	}
+
+	inline operator const vector<_OutDim, _T>&() const
 	{
 		return value;
 	}
@@ -58,8 +61,8 @@ struct ad_point
 	template<typename _T2>
 	inline ad_point<_OutDim, _InDim, _T>& operator=(const ad_point<_OutDim, _InDim, _T2>& other)
 	{
-		value = (math::vector<_OutDim, _T>)other.value;
-		derivative = (math::matrix<_OutDim, _InDim, _T>)other.derivative;
+		value = (vector<_OutDim, _T> )other.value;
+		derivative = (matrix<_OutDim, _InDim, _T> )other.derivative;
 		return *this;
 	}
 
@@ -68,15 +71,33 @@ struct ad_point
 	 */
 	inline ad_point<1, _InDim, _T> operator[](size_t i) const
 	{
-		return ad_point<1, _InDim, _T>({value[i]}, (math::matrix<1, _InDim, _T>)derivative[i]);
+		return ad_point<1, _InDim, _T>({value[i]}, (matrix<1, _InDim, _T> )derivative[i]);
 	}
 
 	/**
 	 * @brief 提取指定坐标的梯度
 	 */
-	inline math::vector<_InDim, _T> grad(size_t i) const
+	inline vector<_InDim, _T>& grad(size_t i)
 	{
 		return derivative[i];
+	}
+
+	inline const vector<_InDim, _T>& grad(size_t i) const
+	{
+		return derivative[i];
+	}
+
+	/**
+	 * @brief 雅可比矩阵值
+	 */
+	inline matrix<_OutDim, _InDim, _T>& jacobi(size_t i)
+	{
+		return derivative;
+	}
+
+	inline const matrix<_OutDim, _InDim, _T>& jacobi(size_t i) const
+	{
+		return derivative;
 	}
 
 	/**
@@ -89,12 +110,17 @@ struct ad_point
 	 * @param i 输出分量下标
 	 * @param j 输入自变量下标
 	 */
-	inline _T partial(size_t i, size_t j) const
+	inline _T& partial(size_t i, size_t j)
 	{
 		return derivative[i][j];
 	}
 
-	inline math::vector<_OutDim, _T> partial(size_t j) const
+	inline const _T& partial(size_t i, size_t j) const
+	{
+		return derivative[i][j];
+	}
+
+	inline vector<_OutDim, _T> partial(size_t j) const
 	{
 		return derivative.column(j);
 	}
@@ -103,7 +129,7 @@ struct ad_point
 	 * Jacobi矩阵为指定列赋值
 	 * 即对所有坐标的某个自变量偏导数赋值
 	 */
-	inline void partial_assign(size_t j, const math::vector<_OutDim, _T>& partial)
+	inline void partial_assign(size_t j, const vector<_OutDim, _T>& partial)
 	{
 		for(size_t i = 0; i < _OutDim; ++i)
 			derivative.elem[i][j] = partial[i];
@@ -112,7 +138,7 @@ struct ad_point
 	template<typename _T2>
 	inline operator ad_point<_OutDim, _InDim, _T2>() const
 	{
-		return ad_point<_OutDim, _InDim, _T2>((math::vector<_OutDim, _T2>)value, (math::matrix<_OutDim, _InDim, _T2>)derivative);
+		return ad_point<_OutDim, _InDim, _T2>((vector<_OutDim, _T2> )value, (matrix<_OutDim, _InDim, _T2> )derivative);
 	}
 
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() + tplmp::decl<_T2>::val())>
@@ -135,13 +161,22 @@ struct ad_point
 		return ad_point<_OutDim, _InDim, _T>(-value, -derivative);
 	}
 
+	/**
+	 * @brief 点乘。比hadamard(adp, adp).sum()更高效
+	 */
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
-	inline ad_point<_OutDim, _InDim, _Result> operator*(const ad_point<_OutDim, _InDim, _T2>& other) const
+	inline ad_point<1, _InDim, _Result> operator*(const ad_point<_OutDim, _InDim, _T2>& other) const
 	{
-		// ∇(uv)=u∇v+v∇u
-		ad_point<_OutDim, _InDim, _Result> adp(hadamard(value, other.value));
-		for(size_t i = 0; i < _OutDim; ++i)
-			adp.derivative[i] = derivative[i] * other.value[i] + other.derivative[i] * value[i];
+		ad_point<1, _InDim, _Result> adp(vector<1, _Result> {value * other.value});
+		for(size_t j = 0; j < _InDim; ++j)
+		{
+			adp.derivative[0][j] = 0;
+			for(size_t i = 0; i < _OutDim; ++i)
+			{
+				// d(uv)=udv+vdu
+				adp.derivative[0][j] += derivative[i][j] * other.value[i] + other.derivative[i][j] * value[i];
+			}
+		}
 		return adp;
 	}
 
@@ -171,7 +206,7 @@ struct ad_point
 	template<typename _Result = decltype(tplmp::decl<_T>::val() + tplmp::decl<_T>::val())>
 	inline ad_point<1, _InDim, _Result> sum() const
 	{
-		ad_point<1, _InDim, _Result> adp(math::vector<1, _Result>{value.sum()});
+		ad_point<1, _InDim, _Result> adp(vector<1, _Result> {value.sum()});
 		for(size_t j = 0; j < _InDim; ++j)
 		{
 			adp.derivative[0][j] = derivative.sum_column(j);
@@ -199,6 +234,7 @@ struct ad_point
 template<typename _T1, size_t _OutDim, size_t _InDim, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
 inline ad_point<_OutDim, _InDim, _Result> operator*(_T1 t, const ad_point<_OutDim, _InDim, _T2>& adp)
 {
+	// ∇(ku)=k∇u
 	ad_point<_OutDim, _InDim, _Result> mul_result;
 	mul_result.value = t * adp.value;
 	mul_result.derivative = t * adp.derivative;
@@ -208,10 +244,25 @@ inline ad_point<_OutDim, _InDim, _Result> operator*(_T1 t, const ad_point<_OutDi
 template<typename _T1, size_t _OutDim, size_t _InDim, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
 inline ad_point<_OutDim, _InDim, _Result> operator/(_T1 t, const ad_point<_OutDim, _InDim, _T2>& adp)
 {
+	// ∇(k/u)=k∇u⁻¹=-ku⁻²∇u
 	ad_point<_OutDim, _InDim, _Result> div_result;
 	div_result.value = t / adp.value;
-	div_result.derivative = t / adp.derivative;
+	for(size_t i = 0; i < _OutDim; ++i)
+		div_result.derivative[i] = (-t / (adp.value[i] * adp.value[i])) * adp.derivative[i];
 	return div_result;
+}
+
+/**
+ * @brief 按位相乘，即哈达玛积
+ */
+template<size_t _OutDim, size_t _InDim, typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline ad_point<_OutDim, _InDim, _Result> hadamard(const ad_point<_OutDim, _InDim, _T1>& adp1, const ad_point<_OutDim, _InDim, _T2>& adp2)
+{
+	// ∇(uv)=u∇v+v∇u
+	ad_point<_OutDim, _InDim, _Result> adp(hadamard(adp1.value, adp2.value));
+	for(size_t i = 0; i < _OutDim; ++i)
+		adp.derivative[i] = adp1.derivative[i] * adp2.value[i] + adp2.derivative[i] * adp1.value[i];
+	return adp;
 }
 
 /**
@@ -261,7 +312,7 @@ template<size_t _OutDim, size_t _InDim, typename _T>
 inline ad_point<_OutDim, _InDim, _T> C(size_t basis, _T val)
 {
 	//仅对应下标的值为val，其偏导数全为1
-	ad_point<_OutDim, _InDim, _T> cp(math::vector<_OutDim, _T>::zero(), math::matrix<_OutDim, _InDim, _T>::zero());
+	ad_point<_OutDim, _InDim, _T> cp(vector<_OutDim, _T>::zero(), matrix<_OutDim, _InDim, _T>::zero());
 	cp.value[basis] = val;
 	return cp;
 }
@@ -301,7 +352,7 @@ struct mapping
 	__attribute__((const)) inline static _T value(_T x, _ExtraParams ...extra_params);
 
 	template<typename ..._ExtraParams>
-	__attribute__((pure)) inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad, _ExtraParams ...extra_params);
+	__attribute__((pure)) inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad, _ExtraParams ...extra_params);
 
 	template<typename ..._ExtraParams>
 	__attribute__((always_inline, pure)) inline static ad_point<_OutDim, _InDim, _T> value(const ad_point<_OutDim, _InDim, _T>& x, _ExtraParams ...extra_params)
@@ -327,10 +378,10 @@ inline ad_point<_OutDim, _InDim, _T> exp(const ad_point<_OutDim, _InDim, _T>& x)
 	{
 		__attribute__((always_inline, const)) inline static _T value(_T x)
 		{
-			return math::exp(x);
+			return exp(x);
 		}
 
-		__attribute__((always_inline, pure)) inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad)
+		__attribute__((always_inline, pure)) inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad)
 		{
 			return grad * fx;
 		}
@@ -348,11 +399,11 @@ inline ad_point<_OutDim, _InDim, _T> ln(const ad_point<_OutDim, _InDim, _T>& x)
 		__attribute__((always_inline, const))
 		inline static _T value(_T x)
 		{
-			return math::ln(x);
+			return ln(x);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad)
 		{
 			return grad / x;
 		}
@@ -370,13 +421,13 @@ inline ad_point<_OutDim, _InDim, _T> lg(const ad_point<_OutDim, _InDim, _T>& x)
 		__attribute__((always_inline, const))
 		inline static _T value(_T x)
 		{
-			return math::lg(x);
+			return lg(x);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad)
 		{
-			return grad / (x * math::ln10<_T>());
+			return grad / (x * constant<_T>::ln10);
 		}
 
 		using mapping<_OutDim, _InDim, _T, __lg_impl >::value;
@@ -392,11 +443,11 @@ inline ad_point<_OutDim, _InDim, _T> sqrt(const ad_point<_OutDim, _InDim, _T>& x
 		__attribute__((always_inline, const))
 		inline static _T value(_T x)
 		{
-			return math::sqrt(x);
+			return sqrt(x);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad)
 		{
 			return grad / (_T(2) * fx);
 		}
@@ -409,7 +460,7 @@ inline ad_point<_OutDim, _InDim, _T> sqrt(const ad_point<_OutDim, _InDim, _T>& x
 template<size_t _OutDim, size_t _InDim, typename _T>
 inline ad_point<1, _InDim, _T> ad_point<_OutDim, _InDim, _T>::norm() const
 {
-	return sqrt(((*this) * (*this)).sum());
+	return sqrt((*this) * (*this));
 }
 
 //幂函数：x^n，n是常数
@@ -421,13 +472,13 @@ inline ad_point<_OutDim, _InDim, _T> pow(const ad_point<_OutDim, _InDim, _T>& x,
 		__attribute__((always_inline, const))
 		inline static _T value(_T x, const _T n)
 		{
-			return math::pow(x, n);
+			return pow(x, n);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad, const _T n)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad, const _T n)
 		{
-			return grad * (n * math::pow(x, n - _T(1)));
+			return grad * (n * pow(x, n - _T(1)));
 		}
 
 		using mapping<_OutDim, _InDim, _T, __pow_impl >::value;
@@ -444,13 +495,13 @@ inline ad_point<_OutDim, _InDim, _T> pow(const _T a, const ad_point<_OutDim, _In
 		__attribute__((always_inline, const))
 		inline static _T value(_T x, const _T a)
 		{
-			return math::pow(a, x);
+			return pow(a, x);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad, const _T a)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad, const _T a)
 		{
-			return grad * ((math::ln(a) * fx));
+			return grad * ((ln(a) * fx));
 		}
 
 		using mapping<_OutDim, _InDim, _T, __pow_exp_impl >::value;
@@ -466,11 +517,11 @@ inline ad_point<_OutDim, _InDim, _T> abs(const ad_point<_OutDim, _InDim, _T>& x)
 		__attribute__((always_inline, const))
 		inline static _T value(_T x)
 		{
-			return math::abs(x);
+			return abs(x);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad)
 		{
 			return grad * (x >= _T(0) ? _T(1) : _T(-1));
 		}
@@ -488,13 +539,13 @@ inline ad_point<_OutDim, _InDim, _T> sin(const ad_point<_OutDim, _InDim, _T>& x)
 		__attribute__((always_inline, const))
 		inline static _T value(_T x)
 		{
-			return math::sin(x);
+			return sin(x);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad)
 		{
-			return grad * math::cos(x);
+			return grad * cos(x);
 		}
 
 		using mapping<_OutDim, _InDim, _T, __sin_impl >::value;
@@ -510,13 +561,13 @@ inline ad_point<_OutDim, _InDim, _T> cos(const ad_point<_OutDim, _InDim, _T>& x)
 		__attribute__((always_inline, const))
 		inline static _T value(_T x)
 		{
-			return math::cos(x);
+			return cos(x);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad)
 		{
-			return grad * (-math::sin(x));
+			return grad * (-sin(x));
 		}
 
 		using mapping<_OutDim, _InDim, _T, __cos_impl >::value;
@@ -532,13 +583,13 @@ inline ad_point<_OutDim, _InDim, _T> tan(const ad_point<_OutDim, _InDim, _T>& x)
 		__attribute__((always_inline, const))
 		inline static _T value(_T x)
 		{
-			return math::tan(x);
+			return tan(x);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad)
 		{
-			_T cos_val = math::cos(x);
+			_T cos_val = cos(x);
 			return grad / (cos_val * cos_val);
 		}
 
@@ -555,13 +606,13 @@ inline ad_point<_OutDim, _InDim, _T> arcsin(const ad_point<_OutDim, _InDim, _T>&
 		__attribute__((always_inline, const))
 		inline static _T value(_T x)
 		{
-			return math::arcsin(x);
+			return arcsin(x);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad)
 		{
-			return grad / math::sqrt(_T(1) - x * x);
+			return grad / sqrt(_T(1) - x * x);
 		}
 
 		using mapping<_OutDim, _InDim, _T, __arcsin_impl >::value;
@@ -577,13 +628,13 @@ inline ad_point<_OutDim, _InDim, _T> arccos(const ad_point<_OutDim, _InDim, _T>&
 		__attribute__((always_inline, const))
 		inline static _T value(_T x)
 		{
-			return math::arccos(x);
+			return arccos(x);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad)
 		{
-			return grad / math::sqrt(_T(1) - x * x);
+			return grad / sqrt(_T(1) - x * x);
 		}
 
 		using mapping<_OutDim, _InDim, _T, __arccos_impl >::value;
@@ -599,11 +650,11 @@ inline ad_point<_OutDim, _InDim, _T> arctan(const ad_point<_OutDim, _InDim, _T>&
 		__attribute__((always_inline, const))
 		inline static _T value(_T x)
 		{
-			return math::arctan(x);
+			return arctan(x);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad)
 		{
 			return grad / (_T(1) + x * x);
 		}
@@ -621,13 +672,13 @@ inline ad_point<_OutDim, _InDim, _T> sinh(const ad_point<_OutDim, _InDim, _T>& x
 		__attribute__((always_inline, const))
 		inline static _T value(_T x)
 		{
-			return math::sinh(x);
+			return sinh(x);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad)
 		{
-			return grad * math::cosh(x);
+			return grad * cosh(x);
 		}
 
 		using mapping<_OutDim, _InDim, _T, __sinh_impl >::value;
@@ -643,13 +694,13 @@ inline ad_point<_OutDim, _InDim, _T> cosh(const ad_point<_OutDim, _InDim, _T>& x
 		__attribute__((always_inline, const))
 		inline static _T value(_T x)
 		{
-			return math::cosh(x);
+			return cosh(x);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad)
 		{
-			return grad * math::sinh(x);
+			return grad * sinh(x);
 		}
 
 		using mapping<_OutDim, _InDim, _T, __cosh_impl >::value;
@@ -665,11 +716,11 @@ inline ad_point<_OutDim, _InDim, _T> tanh(const ad_point<_OutDim, _InDim, _T>& x
 		__attribute__((always_inline, const))
 		inline static _T value(_T x)
 		{
-			return math::tanh(x);
+			return tanh(x);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad)
 		{
 			return grad * (_T(1) - fx * fx);
 		}
@@ -687,13 +738,13 @@ inline ad_point<_OutDim, _InDim, _T> arcsinh(const ad_point<_OutDim, _InDim, _T>
 		__attribute__((always_inline, const))
 		inline static _T value(_T x)
 		{
-			return math::arcsinh(x);
+			return arcsinh(x);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad)
 		{
-			return grad / math::sqrt(x * x + _T(1));
+			return grad / sqrt(x * x + _T(1));
 		}
 
 		using mapping<_OutDim, _InDim, _T, __arcsinh_impl >::value;
@@ -709,13 +760,13 @@ inline ad_point<_OutDim, _InDim, _T> arccosh(const ad_point<_OutDim, _InDim, _T>
 		__attribute__((always_inline, const))
 		inline static _T value(_T x)
 		{
-			return math::arccosh(x);
+			return arccosh(x);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad)
 		{
-			return grad / math::sqrt(x * x - _T(1));
+			return grad / sqrt(x * x - _T(1));
 		}
 
 		using mapping<_OutDim, _InDim, _T, __arccosh_impl >::value;
@@ -731,11 +782,11 @@ inline ad_point<_OutDim, _InDim, _T> arctanh(const ad_point<_OutDim, _InDim, _T>
 		__attribute__((always_inline, const))
 		inline static _T value(_T x)
 		{
-			return math::arctanh(x);
+			return arctanh(x);
 		}
 
 		__attribute__((always_inline, pure))
-		inline static math::vector<_InDim, _T> derivative(_T x, _T fx, const math::vector<_InDim, _T>& grad)
+		inline static vector<_InDim, _T> derivative(_T x, _T fx, const vector<_InDim, _T>& grad)
 		{
 			return grad / (_T(1) - x * x);
 		}
@@ -745,7 +796,6 @@ inline ad_point<_OutDim, _InDim, _T> arctanh(const ad_point<_OutDim, _InDim, _T>
 	return __arctanh_impl::value(x);
 }
 
-}
 }
 
 #endif//_MATH_AUTODIFF

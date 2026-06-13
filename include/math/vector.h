@@ -166,6 +166,22 @@ __def_vector_op_unit__	(_T, _Dim)
 		return sub_result;
 	}
 
+	template<typename _T2>
+	inline vector<_Dim, _T>& operator+=(const vector<_Dim, _T2>& vec)
+	{
+		for(size_t i = 0; i < _Dim; ++i)
+		coord[i] += vec.coord[i];
+		return *this;
+	}
+
+	template<typename _T2>
+	inline vector<_Dim, _T>& operator-=(const vector<_Dim, _T2>& vec)
+	{
+		for(size_t i = 0; i < _Dim; ++i)
+		coord[i] -= vec.coord[i];
+		return *this;
+	}
+
 	/**
 	 * 向量取反
 	 */
@@ -177,36 +193,12 @@ __def_vector_op_unit__	(_T, _Dim)
 		return inv;
 	}
 
-	/**
-	 * 标量乘法
-	 */
-	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
-	inline vector<_Dim, _Result> operator*(_T2 t) const
-	{
-		vector<_Dim, _Result> mul_result;
-		for(size_t i = 0; i < _Dim; ++i)
-		mul_result[i] = (_Result)(coord[i] * t);
-		return mul_result;
-	}
-
 	template<typename _T2>
 	inline vector<_Dim, _T>& operator*=(const _T2& t)
 	{
 		for(size_t i = 0; i < _Dim; ++i)
 		coord[i] *= t;
 		return *this;
-	}
-
-	/**
-	 * 标量除法
-	 */
-	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
-	inline vector<_Dim, _Result> operator/(_T2 t) const
-	{
-		vector<_Dim, _Result> div_result;
-		for(size_t i = 0; i < _Dim; ++i)
-		div_result[i] = (_Result)(coord[i] / t);
-		return div_result;
 	}
 
 	template<typename _T2>
@@ -301,6 +293,30 @@ inline std::ostream& operator<<(std::ostream& os, const vector<_Dim, _T>& vec)
 {
 	os << ((std::string)vec);
 	return os;
+}
+
+/**
+ * 标量乘法
+ */
+template<typename _T1, size_t _Dim, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline vector<_Dim, _Result> operator*(const vector<_Dim, _T1>& vec, _T2 t)
+{
+	vector<_Dim, _Result> mul_result;
+	for(size_t i = 0; i < _Dim; ++i)
+		mul_result[i] = (_Result)(vec.coord[i] * t);
+	return mul_result;
+}
+
+/**
+ * 标量除法
+ */
+template<typename _T1, size_t _Dim, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
+inline vector<_Dim, _Result> operator/(const vector<_Dim, _T1>& vec, _T2 t)
+{
+	vector<_Dim, _Result> div_result;
+	for(size_t i = 0; i < _Dim; ++i)
+		div_result[i] = (_Result)(vec.coord[i] / t);
+	return div_result;
 }
 
 //交换律
@@ -416,17 +432,24 @@ template	<typename _Result = _T>
 		{	coord[0] - vec.coord[0]};
 	}
 
+	template<typename _T2>
+	inline vector<1, _T>& operator+=(const vector<1, _T2>& vec)
+	{
+		coord[0] += vec.coord[0];
+		return *this;
+	}
+
+	template<typename _T2>
+	inline vector<1, _T>& operator-=(const vector<1, _T2>& vec)
+	{
+		coord[0] -= vec.coord[0];
+		return *this;
+	}
+
 	inline vector<1, _T> operator-() const
 	{
 		return
 		{	-coord[0]};
-	}
-
-	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
-	inline vector<1, _Result> operator*(_T2 t) const
-	{
-		return
-		{	coord[0] * t};
 	}
 
 	template<typename _T2>
@@ -440,13 +463,6 @@ template	<typename _Result = _T>
 	inline _Result operator*(const vector<1, _T2>& vec) const
 	{
 		return coord[0] * vec.coord[0];
-	}
-
-	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
-	inline vector<1, _Result> operator/(_T2 t) const
-	{
-		return
-		{	coord[0] / t};
 	}
 
 	template<typename _T2>
@@ -484,6 +500,19 @@ template	<typename _Result = _T>
 		return oss.str();
 	}
 };
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline vector<1, _Result> operator*(const vector<1, _T2>& vec, _T2 t)
+{
+	return
+	{	vec.coord[0] * t};
+}
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
+inline vector<1, _Result> operator/(const vector<1, _T2>& vec, _T2 t)
+{
+	return
+	{	vec.coord[0] / t};
+}
 
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
 inline vector<1, _Result> operator*(_T1 t, const vector<1, _T2>& vec)
@@ -564,11 +593,20 @@ __def_vector_op_unit__	(_T, 2)
 		{	-coord[0], -coord[1]};
 	}
 
-	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
-	inline vector<2, _Result> operator*(_T2 t) const
+	template<typename _T2>
+	inline vector<2, _T>& operator+=(const vector<2, _T2>& vec)
 	{
-		return
-		{	coord[0] * t, coord[1] * t};
+		coord[0] += vec.coord[0];
+		coord[1] += vec.coord[1];
+		return *this;
+	}
+
+	template<typename _T2>
+	inline vector<2, _T>& operator-=(const vector<2, _T2>& vec)
+	{
+		coord[0] -= vec.coord[0];
+		coord[1] -= vec.coord[1];
+		return *this;
 	}
 
 	template<typename _T2>
@@ -583,13 +621,6 @@ __def_vector_op_unit__	(_T, 2)
 	inline _Result operator*(const vector<2, _T2>& vec) const
 	{
 		return coord[0] * vec.coord[0] + coord[1] * vec.coord[1];
-	}
-
-	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
-	inline vector<2, _Result> operator/(_T2 t) const
-	{
-		return
-		{	coord[0] / t, coord[1] / t};
 	}
 
 	template<typename _T2>
@@ -636,6 +667,22 @@ __def_vector_op_unit__	(_T, 2)
 		return oss.str();
 	}
 };
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline vector<2, _Result> operator*(const vector<2, _T1>& vec, _T2 t)
+{
+	return
+	{	vec.coord[0] * t,
+		vec.coord[1] * t};
+}
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
+inline vector<2, _Result> operator/(const vector<2, _T1>& vec, _T2 t)
+{
+	return
+	{	vec.coord[0] / t,
+		vec.coord[1] / t};
+}
 
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
 inline vector<2, _Result> operator*(_T1 t, const vector<2, _T2>& vec)
@@ -712,17 +759,28 @@ __def_vector_op_unit__	(_T, 3)
 		{	coord[0]-vec.coord[0],coord[1]-vec.coord[1],coord[2]-vec.coord[2]};
 	}
 
+	template<typename _T2>
+	inline vector<3, _T>& operator+=(const vector<3, _T2>& vec)
+	{
+		coord[0] += vec.coord[0];
+		coord[1] += vec.coord[1];
+		coord[2] += vec.coord[2];
+		return *this;
+	}
+
+	template<typename _T2>
+	inline vector<3, _T>& operator-=(const vector<3, _T2>& vec)
+	{
+		coord[0] -= vec.coord[0];
+		coord[1] -= vec.coord[1];
+		coord[2] -= vec.coord[2];
+		return *this;
+	}
+
 	inline vector<3, _T> operator-() const
 	{
 		return
 		{	-coord[0],-coord[1],-coord[2]};
-	}
-
-	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
-	inline vector<3, _Result> operator*(_T2 t) const
-	{
-		return
-		{	coord[0]*t,coord[1]*t,coord[2]*t};
 	}
 
 	template<typename _T2>
@@ -738,13 +796,6 @@ __def_vector_op_unit__	(_T, 3)
 	inline _Result operator*(const vector<3, _T2> vec) const
 	{
 		return coord[0] * vec.coord[0] + coord[1] * vec.coord[1] + coord[2] * vec.coord[2];
-	}
-
-	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
-	inline vector<3, _Result> operator/(_T2 t) const
-	{
-		return
-		{	coord[0]/t, coord[1]/t, coord[2]/t};
 	}
 
 	template<typename _T2>
@@ -797,6 +848,20 @@ __def_vector_op_unit__	(_T, 3)
 		return oss.str();
 	}
 };
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline vector<3, _Result> operator*(const vector<3, _T1>& vec, _T2 t)
+{
+	return
+	{	vec.coord[0] * t, vec.coord[1] * t, vec.coord[2] * t};
+}
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
+inline vector<3, _Result> operator/(const vector<3, _T1>& vec, _T2 t)
+{
+	return
+	{	vec.coord[0] / t, vec.coord[1] / t, vec.coord[2] / t};
+}
 
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
 inline vector<3, _Result> operator*(_T1 t, const vector<3, _T2>& vec)
@@ -887,17 +952,30 @@ __def_vector_op_unit__	(_T, 4)
 		};
 	}
 
+	template<typename _T2>
+	inline vector<4, _T>& operator+=(const vector<4, _T2>& vec)
+	{
+		coord[0] += vec.coord[0];
+		coord[1] += vec.coord[1];
+		coord[2] += vec.coord[2];
+		coord[3] += vec.coord[3];
+		return *this;
+	}
+
+	template<typename _T2>
+	inline vector<4, _T>& operator-=(const vector<4, _T2>& vec)
+	{
+		coord[0] -= vec.coord[0];
+		coord[1] -= vec.coord[1];
+		coord[2] -= vec.coord[2];
+		coord[3] -= vec.coord[3];
+		return *this;
+	}
+
 	inline vector<4, _T> operator-() const
 	{
 		return
 		{	-coord[0], -coord[1], -coord[2], -coord[3]};
-	}
-
-	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
-	inline vector<4, _Result> operator*(_T2 t) const
-	{
-		return
-		{	coord[0] * t, coord[1] * t, coord[2] * t, coord[3] * t};
 	}
 
 	template<typename _T2>
@@ -914,13 +992,6 @@ __def_vector_op_unit__	(_T, 4)
 	inline _Result operator*(const vector<4, _T2>& vec) const
 	{
 		return coord[0] * vec.coord[0] + coord[1] * vec.coord[1] + coord[2] * vec.coord[2] + coord[3] * vec.coord[3];
-	}
-
-	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
-	inline vector<4, _Result> operator/(_T2 t) const
-	{
-		return
-		{	coord[0] / t, coord[1] / t, coord[2] / t, coord[3] / t};
 	}
 
 	template<typename _T2>
@@ -965,6 +1036,20 @@ __def_vector_op_unit__	(_T, 4)
 		return oss.str();
 	}
 };
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline vector<4, _Result> operator*(const vector<4, _T1>& vec, _T2 t)
+{
+	return
+	{	vec.coord[0] * t, vec.coord[1] * t, vec.coord[2] * t, vec.coord[3] * t};
+}
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
+inline vector<4, _Result> operator/(const vector<4, _T1>& vec, _T2 t)
+{
+	return
+	{	vec.coord[0] / t, vec.coord[1] / t, vec.coord[2] / t, vec.coord[3] / t};
+}
 
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
 inline vector<4, _Result> operator*(_T1 t, const vector<4, _T2>& vec)
@@ -1065,19 +1150,35 @@ __def_vector_op_unit__	(_T, 6)
 		};
 	}
 
+	template<typename _T2>
+	inline vector<6, _T>& operator+=(const vector<6, _T2>& vec)
+	{
+		coord[0] += vec.coord[0];
+		coord[1] += vec.coord[1];
+		coord[2] += vec.coord[2];
+		coord[3] += vec.coord[3];
+		coord[4] += vec.coord[4];
+		coord[5] += vec.coord[5];
+		return *this;
+	}
+
+	template<typename _T2>
+	inline vector<6, _T>& operator-=(const vector<6, _T2>& vec)
+	{
+		coord[0] -= vec.coord[0];
+		coord[1] -= vec.coord[1];
+		coord[2] -= vec.coord[2];
+		coord[3] -= vec.coord[3];
+		coord[4] -= vec.coord[4];
+		coord[5] -= vec.coord[5];
+		return *this;
+	}
+
 	inline vector<6, _T> operator-() const
 	{
 		return
 		{	-coord[0], -coord[1], -coord[2],
 			-coord[3], -coord[4], -coord[5]};
-	}
-
-	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
-	inline vector<6, _Result> operator*(_T2 t) const
-	{
-		return
-		{	coord[0] * t, coord[1] * t, coord[2] * t,
-			coord[3] * t, coord[4] * t, coord[5] * t};
 	}
 
 	template<typename _T2>
@@ -1098,14 +1199,6 @@ __def_vector_op_unit__	(_T, 6)
 		return coord[0] * vec.coord[0] + coord[1] * vec.coord[1] +
 		coord[2] * vec.coord[2] + coord[3] * vec.coord[3] +
 		coord[4] * vec.coord[4] + coord[5] * vec.coord[5];
-	}
-
-	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
-	inline vector<6, _Result> operator/(_T2 t) const
-	{
-		return
-		{	coord[0] / t, coord[1] / t, coord[2] / t,
-			coord[3] / t, coord[4] / t, coord[5] / t};
 	}
 
 	template<typename _T2>
@@ -1155,6 +1248,22 @@ __def_vector_op_unit__	(_T, 6)
 		return oss.str();
 	}
 };
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline vector<6, _Result> operator*(const vector<6, _T1>& vec, _T2 t)
+{
+	return
+	{	vec.coord[0] * t, vec.coord[1] * t, vec.coord[2] * t,
+		vec.coord[3] * t, vec.coord[4] * t, vec.coord[5] * t};
+}
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
+inline vector<6, _Result> operator/(const vector<6, _T1>& vec, _T2 t)
+{
+	return
+	{	vec.coord[0] / t, vec.coord[1] / t, vec.coord[2] / t,
+		vec.coord[3] / t, vec.coord[4] / t, vec.coord[5] / t};
+}
 
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
 inline vector<6, _Result> operator*(_T1 t, const vector<6, _T2>& vec)
@@ -1265,21 +1374,38 @@ __def_vector_op_unit__	(_T, 7)
 		};
 	}
 
+	template<typename _T2>
+	inline vector<7, _T>& operator+=(const vector<7, _T2>& vec)
+	{
+		coord[0] += vec.coord[0];
+		coord[1] += vec.coord[1];
+		coord[2] += vec.coord[2];
+		coord[3] += vec.coord[3];
+		coord[4] += vec.coord[4];
+		coord[5] += vec.coord[5];
+		coord[6] += vec.coord[6];
+		return *this;
+	}
+
+	template<typename _T2>
+	inline vector<7, _T>& operator-=(const vector<7, _T2>& vec)
+	{
+		coord[0] -= vec.coord[0];
+		coord[1] -= vec.coord[1];
+		coord[2] -= vec.coord[2];
+		coord[3] -= vec.coord[3];
+		coord[4] -= vec.coord[4];
+		coord[5] -= vec.coord[5];
+		coord[6] -= vec.coord[6];
+		return *this;
+	}
+
 	inline vector<7, _T> operator-() const
 	{
 		return
 		{	-coord[0], -coord[1], -coord[2],
 			-coord[3], -coord[4], -coord[5],
 			-coord[6]};
-	}
-
-	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
-	inline vector<7, _Result> operator*(_T2 t) const
-	{
-		return
-		{	coord[0] * t, coord[1] * t, coord[2] * t,
-			coord[3] * t, coord[4] * t, coord[5] * t,
-			coord[6] * t};
 	}
 
 	template<typename _T2>
@@ -1302,15 +1428,6 @@ __def_vector_op_unit__	(_T, 7)
 		coord[2] * vec.coord[2] + coord[3] * vec.coord[3] +
 		coord[4] * vec.coord[4] + coord[5] * vec.coord[5] +
 		coord[6] * vec.coord[6];
-	}
-
-	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
-	inline vector<7, _Result> operator/(_T2 t) const
-	{
-		return
-		{	coord[0] / t, coord[1] / t, coord[2] / t,
-			coord[3] / t, coord[4] / t, coord[5] / t,
-			coord[6] / t};
 	}
 
 	template<typename _T2>
@@ -1363,6 +1480,24 @@ __def_vector_op_unit__	(_T, 7)
 		return oss.str();
 	}
 };
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
+inline vector<7, _Result> operator*(const vector<7, _T1>& vec, _T2 t)
+{
+	return
+	{	vec.coord[0] * t, vec.coord[1] * t, vec.coord[2] * t,
+		vec.coord[3] * t, vec.coord[4] * t, vec.coord[5] * t,
+		vec.coord[6] * t};
+}
+
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
+inline vector<7, _Result> operator/(const vector<7, _T1>& vec, _T2 t)
+{
+	return
+	{	vec.coord[0] / t, vec.coord[1] / t, vec.coord[2] / t,
+		vec.coord[3] / t, vec.coord[4] / t, vec.coord[5] / t,
+		vec.coord[6] / t};
+}
 
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
 inline vector<7, _Result> operator*(_T1 t, const vector<7, _T2>& vec)
