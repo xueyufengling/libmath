@@ -2,7 +2,6 @@
 #define _MATH_VECTOR
 
 #include <tplmp/base.h>
-#include <tplmp/array.h>
 
 #include <string.h>
 #include <sstream>
@@ -347,11 +346,9 @@ inline vector<_Dim, _Result> hadamard(const vector<_Dim, _T1>& vec1, const vecto
 	return hadamard_result;
 }
 
-namespace algebra
-{
 //加法恒等元
 template<size_t _Dim, typename _T>
-struct __identity_impl<vector<_Dim, _T>, algebra::add>
+struct __identity_impl<vector<_Dim, _T>, add>
 {
 	inline static vector<_Dim, _T> value()
 	{
@@ -369,7 +366,6 @@ struct __basis_impl<vector<_Dim, _T> >
 		return basis;
 	}
 };
-}
 
 // 1维向量特化
 template<typename _T>

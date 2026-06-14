@@ -3,9 +3,12 @@
 
 #include <tplmp/base.h>
 
+#include <sstream>
+
 #include <math/elementary_function.h>
 #include <math/vector.h>
 #include <math/matrix.h>
+#include <math/algebra.h>
 
 namespace math
 {
@@ -19,6 +22,8 @@ namespace math
 
 /**
  * @brief _Order阶龙格库塔法使用的Butcher Tableau，即算法参数表
+ * 		  若A为严格的下三角矩阵（对角线及上三角均为0），则属于显式RK法；若A含有对角非零元或上三角非零元，则属于隐式RK法。
+ * 		  对保辛系统积分时需要使用隐式RK法，否则系统的哈密顿量会剧烈单调漂移发散。
  */
 template<size_t _Order, typename _T>
 struct butcher_table
@@ -33,13 +38,63 @@ struct butcher_table
 			c(_c), A(_A), b(_b)
 	{
 	}
+
+	/**
+	 * @brief 是否是显式RK法的参数表
+	 */
+	inline bool is_explicit(_T eps = 0) const
+	{
+		//判断对角线及上三角有无非零元，如果有则是隐式RK法
+		for(size_t i = 0; i < _Order; ++i)
+		{
+			for(size_t j = i; j < _Order; ++j)
+			{
+				if(!is_zero(A[i][j], eps))
+					return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * @brief 是否是辛的
+	 */
+	bool is_symplectic(_T eps = 0) const
+	{
+		//bi*Aij+bj*Aji=bi*bj, ∀i,j=1,…,_Order
+		for(int i = 0; i < _Order; i++)
+		{
+			for(int j = 0; j < _Order; j++)
+			{
+				if(is_zero(b[i] * A[i][j] + b[j] * A[j][i] - b[i] * b[j], eps))
+					return false;
+			}
+		}
+		return true;
+	}
+
+	inline operator std::string() const
+	{
+		std::ostringstream oss;
+		oss << "c:\n" << c << '\n';
+		oss << "A:\n" << A << '\n';
+		oss << "b:\n" << b;
+		return oss.str();
+	}
 };
+
+template<size_t _Order, typename _T>
+inline std::ostream& operator<<(std::ostream& os, const butcher_table<_Order, _T>& table)
+{
+	os << ((std::string)table);
+	return os;
+}
 
 /**
  * 欧拉法
  */
 template<typename _T>
-const butcher_table<1, _T>& rk1_euler()
+const butcher_table<1, _T>& erk1_euler()
 {
 	static const butcher_table<1, _T> table(
 			{_T(0)},
@@ -53,7 +108,7 @@ const butcher_table<1, _T>& rk1_euler()
  * 中点法
  */
 template<typename _T>
-const butcher_table<2, _T>& rk2_midpoint()
+const butcher_table<2, _T>& erk2_midpoint()
 {
 	static const butcher_table<2, _T> table(
 			{_T(0), _T(1) / _T(2)},
@@ -66,7 +121,7 @@ const butcher_table<2, _T>& rk2_midpoint()
  * 改进欧拉法
  */
 template<typename _T>
-const butcher_table<2, _T>& rk2_heun()
+const butcher_table<2, _T>& erk2_heun()
 {
 	static const butcher_table<2, _T> table(
 			{_T(0), _T(1)},
@@ -80,7 +135,7 @@ const butcher_table<2, _T>& rk2_heun()
  * Ralston法
  */
 template<typename _T>
-const butcher_table<2, _T>& rk2_ralston()
+const butcher_table<2, _T>& erk2_ralston()
 {
 	static const butcher_table<2, _T> table(
 			{_T(0), _T(2) / _T(3)},
@@ -94,7 +149,7 @@ const butcher_table<2, _T>& rk2_ralston()
  * 经典RK3法
  */
 template<typename _T>
-const butcher_table<3, _T>& rk3_classic()
+const butcher_table<3, _T>& erk3_classic()
 {
 	static const butcher_table<3, _T> table(
 			{_T(0), _T(1) / _T(2), _T(1)},
@@ -110,7 +165,7 @@ const butcher_table<3, _T>& rk3_classic()
  * Heun三阶法
  */
 template<typename _T>
-const butcher_table<3, _T>& rk3_heun()
+const butcher_table<3, _T>& erk3_heun()
 {
 	static const butcher_table<3, _T> table(
 			{_T(0), _T(1) / _T(3), _T(2) / _T(3)},
@@ -126,7 +181,7 @@ const butcher_table<3, _T>& rk3_heun()
  * Ralston三阶法
  */
 template<typename _T>
-const butcher_table<3, _T>& rk3_ralston()
+const butcher_table<3, _T>& erk3_ralston()
 {
 	static const butcher_table<3, _T> table(
 			{_T(0), _T(1) / _T(2), _T(3) / _T(4)},
@@ -142,7 +197,7 @@ const butcher_table<3, _T>& rk3_ralston()
  * 经典RK4法
  */
 template<typename _T>
-const butcher_table<4, _T>& rk4_classic()
+const butcher_table<4, _T>& erk4_classic()
 {
 	static const butcher_table<4, _T> table(
 			{_T(0), _T(1) / _T(2), _T(1) / _T(2), _T(1)},
@@ -159,7 +214,7 @@ const butcher_table<4, _T>& rk4_classic()
  * 3/8法则法
  */
 template<typename _T>
-const butcher_table<4, _T>& rk4_three_eighths()
+const butcher_table<4, _T>& erk4_three_eighths()
 {
 	static const butcher_table<4, _T> table(
 			{_T(0), _T(1) / _T(3), _T(2) / _T(3), _T(1)},
@@ -176,7 +231,7 @@ const butcher_table<4, _T>& rk4_three_eighths()
  * Ralston四阶法
  */
 template<typename _T>
-const butcher_table<4, _T>& rk4_ralston()
+const butcher_table<4, _T>& erk4_ralston()
 {
 	static const butcher_table<4, _T> table(
 			{_T(0), _T(4) / _T(10), _T(6) / _T(10), _T(1)},
@@ -198,7 +253,7 @@ const butcher_table<4, _T>& rk4_ralston()
  * 2阶辛方法
  */
 template<typename _T>
-const butcher_table<1, _T>& rk1_symplectic_gauss_legendre_1()
+const butcher_table<1, _T>& irk1_symplectic_gauss_legendre_1()
 {
 	static const butcher_table<1, _T> table(
 			{_T(1) / _T(2)},
@@ -213,7 +268,7 @@ const butcher_table<1, _T>& rk1_symplectic_gauss_legendre_1()
  * 4阶辛方法
  */
 template<typename _T>
-const butcher_table<2, _T>& rk2_symplectic_gauss_legendre_2()
+const butcher_table<2, _T>& irk2_symplectic_gauss_legendre_2()
 {
 	static const _T sqrt3 = sqrt(_T(3));
 	static const butcher_table<2, _T> table(
@@ -231,7 +286,7 @@ const butcher_table<2, _T>& rk2_symplectic_gauss_legendre_2()
  * 6阶辛方法
  */
 template<typename _T>
-const butcher_table<3, _T>& rk3_symplectic_gauss_legendre_3()
+const butcher_table<3, _T>& irk3_symplectic_gauss_legendre_3()
 {
 	static const _T sqrt15 = sqrt(_T(15));
 	static const butcher_table<3, _T> table(
@@ -251,7 +306,7 @@ const butcher_table<3, _T>& rk3_symplectic_gauss_legendre_3()
  * 4阶辛方法
  */
 template<typename _T>
-const butcher_table<3, _T>& rk3_symplectic_lobatto_iiia()
+const butcher_table<3, _T>& irk3_symplectic_lobatto_iiia()
 {
 	static const butcher_table<3, _T> table(
 			{_T(0),
@@ -329,7 +384,7 @@ struct F_ft_dependent
  * @param table 算法参数表
  */
 template<size_t _Dim, size_t _Order, typename _T, typename _Derivative>
-vector<_Dim, _T> runge_kutta_step(_Derivative F, _T t0, const vector<_Dim, _T>& f_t0, _T dt, const butcher_table<_Order, _T>& table)
+vector<_Dim, _T> explicit_runge_kutta_step(_Derivative F, _T t0, const vector<_Dim, _T>& f_t0, _T dt, const butcher_table<_Order, _T>& table, _T eps = 0)
 {
 	vector<_Order, vector<_Dim, _T> > k;
 	k[0] = F(t0, f_t0);
@@ -344,7 +399,7 @@ vector<_Dim, _T> runge_kutta_step(_Derivative F, _T t0, const vector<_Dim, _T>& 
 		for(size_t j = 0; j < i; ++j)
 		{
 			_T Aij = table.A[i][j];
-			if(Aij != 0)
+			if(!is_zero(Aij, eps))
 			{
 				df += Aij * k[j];
 			}
@@ -359,7 +414,7 @@ vector<_Dim, _T> runge_kutta_step(_Derivative F, _T t0, const vector<_Dim, _T>& 
 	for(size_t i = 0; i < _Order; ++i)
 	{
 		_T bi = table.b[i];
-		if(bi != 0)
+		if(!is_zero(bi, eps))
 		{
 			df += bi * k[i];
 		}

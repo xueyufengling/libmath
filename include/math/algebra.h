@@ -8,8 +8,6 @@
  */
 namespace math
 {
-namespace algebra
-{
 struct add;
 struct mul;
 
@@ -83,7 +81,6 @@ inline _T basis(_Indices ... indices)
 	return __basis_impl<_T>::value(indices...);
 }
 
-}
 }
 
 #endif//_MATH_ALGEBRA

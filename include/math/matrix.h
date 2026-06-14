@@ -2,12 +2,11 @@
 #define _MATH_MATRIX
 
 #include <tplmp/base.h>
-#include <tplmp/array.h>
 
-#include <string.h>
 #include <sstream>
 
 #include <math/vector.h>
+#include <math/algebra.h>
 
 namespace math
 {
@@ -77,7 +76,7 @@ public:
 				pivot_row = r;\
 			}\
 		}\
-		if(math::algebra::is_zero(max_abs, eps))\
+		if(math::is_zero(max_abs, eps))\
 			return row;\
 		else\
 			return pivot_row;\
@@ -106,7 +105,7 @@ public:
 				}\
 			}\
 		}\
-		if(math::algebra::is_zero(max_abs, eps))\
+		if(math::is_zero(max_abs, eps))\
 			return {row, column};\
 		else\
 			return pivot_coord;\
@@ -446,8 +445,6 @@ inline matrix<_Row1 + _Row2, _Column1 + _Column2, _T> cat(const matrix<_Row1, _C
 	return mat;
 }
 
-namespace algebra
-{
 //基
 template<size_t _Row, size_t _Column, typename _T>
 struct __basis_impl<matrix<_Row, _Column, _T> >
@@ -459,7 +456,6 @@ struct __basis_impl<matrix<_Row, _Column, _T> >
 		return basis;
 	}
 };
-}
 
 /**
  * Row Echelon Form，即变换为行阶梯形
@@ -609,11 +605,9 @@ inline _Result tr(const matrix<_Order, _Order, _T>& mat)
 /**
  * 恒等元
  */
-namespace algebra
-{
 //加法恒等元：零矩阵
 template<size_t _Row, size_t _Column, typename _T>
-struct __identity_impl<matrix<_Row, _Column, _T>, algebra::add>
+struct __identity_impl<matrix<_Row, _Column, _T>, add>
 {
 	inline static matrix<_Row, _Column, _T> value()
 	{
@@ -622,7 +616,7 @@ struct __identity_impl<matrix<_Row, _Column, _T>, algebra::add>
 };
 //乘法恒等元：恒等矩阵
 template<size_t _Order, typename _T>
-struct __identity_impl<matrix<_Order, _Order, _T>, algebra::mul>
+struct __identity_impl<matrix<_Order, _Order, _T>, mul>
 {
 	inline static matrix<_Order, _Order, _T> value()
 	{
@@ -634,14 +628,13 @@ struct __identity_impl<matrix<_Order, _Order, _T>, algebra::mul>
 };
 //乘法零元：零矩阵
 template<size_t _Row, size_t _Column, typename _T>
-struct __zero_impl<matrix<_Row, _Column, _T>, algebra::mul>
+struct __zero_impl<matrix<_Row, _Column, _T>, mul>
 {
 	inline static matrix<_Row, _Column, _T> value()
 	{
 		return matrix<_Row, _Column, _T>::zero();
 	}
 };
-}
 
 // 1x1 方阵特化
 template<typename _T>
@@ -853,10 +846,8 @@ inline _Result tr(const matrix<1, 1, _T>& mat)
 	return mat.elem[0][0];
 }
 
-namespace algebra
-{
 template<typename _T>
-struct __identity_impl<matrix<1, 1, _T>, algebra::mul>
+struct __identity_impl<matrix<1, 1, _T>, mul>
 {
 	static matrix<1, 1, _T> value()
 	{
@@ -864,7 +855,6 @@ struct __identity_impl<matrix<1, 1, _T>, algebra::mul>
 		return tplmp::cast<matrix<1, 1, _T> >(m_elem);
 	}
 };
-}
 
 //2x2方阵特化
 template<typename _T>
@@ -1102,10 +1092,8 @@ inline _Result tr(const matrix<2, 2, _T>& mat)
 	return mat.elem[0][0] + mat.elem[1][1];
 }
 
-namespace algebra
-{
 template<typename _T>
-struct __identity_impl<matrix<2, 2, _T>, algebra::mul>
+struct __identity_impl<matrix<2, 2, _T>, mul>
 {
 	static matrix<2, 2, _T> value()
 	{
@@ -1117,7 +1105,6 @@ struct __identity_impl<matrix<2, 2, _T>, algebra::mul>
 		return tplmp::cast<matrix<2, 2, _T> >(m_elem);
 	}
 };
-}
 
 //3x3方阵特化
 template<typename _T>
@@ -1383,10 +1370,8 @@ inline _Result tr(const matrix<3, 3, _T>& mat)
 	return mat.elem[0][0] + mat.elem[1][1] + mat.elem[2][2];
 }
 
-namespace algebra
-{
 template<typename _T>
-struct __identity_impl<matrix<3, 3, _T>, algebra::mul>
+struct __identity_impl<matrix<3, 3, _T>, mul>
 {
 	static matrix<3, 3, _T> value()
 	{
@@ -1399,7 +1384,6 @@ struct __identity_impl<matrix<3, 3, _T>, algebra::mul>
 		return tplmp::cast<matrix<3, 3, _T> >(m_elem);
 	}
 };
-}
 
 //4x4方阵特化
 template<typename _T>
@@ -1693,10 +1677,8 @@ inline _Result tr(const matrix<4, 4, _T>& mat)
 	return mat.elem[0][0] + mat.elem[1][1] + mat.elem[2][2] + mat.elem[3][3];
 }
 
-namespace algebra
-{
 template<typename _T>
-struct __identity_impl<matrix<4, 4, _T>, algebra::mul>
+struct __identity_impl<matrix<4, 4, _T>, mul>
 {
 	static matrix<4, 4, _T> value()
 	{
@@ -1710,7 +1692,6 @@ struct __identity_impl<matrix<4, 4, _T>, algebra::mul>
 		return tplmp::cast<matrix<4, 4, _T> >(m_elem);
 	}
 };
-}
 
 //6x6矩阵特化
 //用于分析力学相空间计算
