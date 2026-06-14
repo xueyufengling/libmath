@@ -9,6 +9,7 @@
 #include <math/vector.h>
 #include <math/matrix.h>
 #include <math/algebra.h>
+#include <math/auto_diff.h>
 
 namespace math
 {
@@ -21,20 +22,79 @@ namespace math
  */
 
 /**
- * @brief _Order阶龙格库塔法使用的Butcher Tableau，即算法参数表
+ * F(t, f(t))=f'(t)
+ * 适用于直接使用t表达导数的情形。
+ */
+template<size_t _Dim, typename _T, typename _FuncType>
+struct F_t_dependent
+{
+	static_assert(
+			tplmp::type_equal<
+			typename tplmp::callable_ret<_FuncType, _T>::type,
+			vector<_Dim, _T>
+			>::value,
+			"derivative expr must be t-dependent");
+
+	_FuncType F;
+
+	inline F_t_dependent(_FuncType&& direct_expr) :
+			F(tplmp::forward<_FuncType>(direct_expr))
+	{
+	}
+
+	inline vector<_Dim, _T> operator()(_T t, const vector<_Dim, _T>& f_t) const
+	{
+		return F(t);
+	}
+};
+
+/**
+ * F(t, f(t))=auto_diff(f(t))
+ * 适用于自动微分，直接从值f(t)计算。
+ */
+template<size_t _Dim, typename _T, typename _FuncType>
+struct F_ft_dependent
+{
+	static_assert(
+			tplmp::type_equal<
+			typename tplmp::callable_ret<_FuncType, vector<_Dim, _T> >::type,
+			vector<_Dim, _T>
+			>::value,
+			"derivative expr must be f(t)-dependent");
+
+	_FuncType F;
+
+	inline F_ft_dependent(_FuncType&& ad_expr) :
+			F(tplmp::forward<_FuncType>(ad_expr))
+	{
+	}
+
+	inline vector<_Dim, _T> operator()(_T t, const vector<_Dim, _T>& f_t) const
+	{
+		return F(f_t);
+	}
+};
+
+/**
+ * 龙格库塔法
+ */
+namespace runge_kutta
+{
+/**
+ * @brief _Stage阶龙格库塔法使用的Butcher Tableau，即算法参数表
  * 		  若A为严格的下三角矩阵（对角线及上三角均为0），则属于显式RK法；若A含有对角非零元或上三角非零元，则属于隐式RK法。
  * 		  对保辛系统积分时需要使用隐式RK法，否则系统的哈密顿量会剧烈单调漂移发散。
  */
-template<size_t _Order, typename _T>
+template<size_t _Stage, typename _T>
 struct butcher_table
 {
-	vector<_Order, _T> c;
-	matrix<_Order, _Order, _T> A;
-	vector<_Order, _T> b;
+	vector<_Stage, _T> c;
+	matrix<_Stage, _Stage, _T> A;
+	vector<_Stage, _T> b;
 
 	butcher_table() = default;
 
-	butcher_table(const vector<_Order, _T>& _c, const matrix<_Order, _Order, _T>& _A, const vector<_Order, _T>& _b) :
+	butcher_table(const vector<_Stage, _T>& _c, const matrix<_Stage, _Stage, _T>& _A, const vector<_Stage, _T>& _b) :
 			c(_c), A(_A), b(_b)
 	{
 	}
@@ -45,9 +105,9 @@ struct butcher_table
 	inline bool is_explicit(_T eps = 0) const
 	{
 		//判断对角线及上三角有无非零元，如果有则是隐式RK法
-		for(size_t i = 0; i < _Order; ++i)
+		for(size_t i = 0; i < _Stage; ++i)
 		{
-			for(size_t j = i; j < _Order; ++j)
+			for(size_t j = i; j < _Stage; ++j)
 			{
 				if(!is_zero(A[i][j], eps))
 					return false;
@@ -61,10 +121,10 @@ struct butcher_table
 	 */
 	bool is_symplectic(_T eps = 0) const
 	{
-		//bi*Aij+bj*Aji=bi*bj, ∀i,j=1,…,_Order
-		for(int i = 0; i < _Order; i++)
+		//bi*Aij+bj*Aji=bi*bj, ∀i,j=1,…,_Stage
+		for(int i = 0; i < _Stage; i++)
 		{
-			for(int j = 0; j < _Order; j++)
+			for(int j = 0; j < _Stage; j++)
 			{
 				if(is_zero(b[i] * A[i][j] + b[j] * A[j][i] - b[i] * b[j], eps))
 					return false;
@@ -83,8 +143,8 @@ struct butcher_table
 	}
 };
 
-template<size_t _Order, typename _T>
-inline std::ostream& operator<<(std::ostream& os, const butcher_table<_Order, _T>& table)
+template<size_t _Stage, typename _T>
+inline std::ostream& operator<<(std::ostream& os, const butcher_table<_Stage, _T>& table)
 {
 	os << ((std::string)table);
 	return os;
@@ -321,97 +381,41 @@ const butcher_table<3, _T>& irk3_symplectic_lobatto_iiia()
 }
 
 /**
- * F(t, f(t))=f'(t)
- * 适用于直接使用t表达导数的情形。
+ * @brief 根据传入的迭代过程中ki数组计算预测的原函数值。
+ * @param i RK步骤序号，即stage，从0 -> _Stage-1
  */
-template<size_t _Dim, typename _T, typename _FuncType>
-struct F_t_dependent
+template<size_t _Dim, size_t _Stage, typename _T>
+__attribute__((always_inline)) inline vector<_Dim, _T> predicted_val(size_t i, const vector<_Dim, _T>& f_t0, _T dt, const vector<_Stage, vector<_Dim, _T> >& k, const butcher_table<_Stage, _T>& table, _T eps = 0)
 {
-	static_assert(
-			tplmp::type_equal<
-			decltype(tplmp::decl<_FuncType>::val()(tplmp::decl<_T>::val())),
-			vector<_Dim, _T>
-			>::value,
-			"derivative expr must be t-dependent");
-
-	_FuncType F;
-
-	inline F_t_dependent(_FuncType&& direct_expr) :
-			F(tplmp::forward<_FuncType>(direct_expr))
-	{
-	}
-
-	inline vector<_Dim, _T> operator()(_T t, const vector<_Dim, _T>& f_t) const
-	{
-		return F(t);
-	}
-};
-
-/**
- * F(t, f(t))=auto_diff(f(t))
- * 适用于自动微分，直接从值f(t)计算。
- */
-template<size_t _Dim, typename _T, typename _FuncType>
-struct F_ft_dependent
-{
-	static_assert(
-			tplmp::type_equal<
-			decltype(tplmp::decl<_FuncType>::val()(tplmp::decl<vector<_Dim, _T> >::val())),
-			vector<_Dim, _T>
-			>::value,
-			"derivative expr must be f(t)-dependent");
-
-	_FuncType F;
-
-	inline F_ft_dependent(_FuncType&& ad_expr) :
-			F(tplmp::forward<_FuncType>(ad_expr))
-	{
-	}
-
-	inline vector<_Dim, _T> operator()(_T t, const vector<_Dim, _T>& f_t) const
-	{
-		return F(f_t);
-	}
-};
-
-/**
- * @brief _Order阶显式龙格库塔法单步积分。
- * 		  给定原函数在t0时刻的初始值，计算其在t0+step_size处的值。
- * @param F 原函数的导数数值计算函数F
- * @param t0 积分起点
- * @param f_t0 原函数f(t)在t0时刻的初始值f(t0)，即F在t0的积分值
- * @param dt 单步积分步长，步长越小积分精度越高。
- * @param table 算法参数表
- */
-template<size_t _Dim, size_t _Order, typename _T, typename _Derivative>
-vector<_Dim, _T> explicit_runge_kutta_step(_Derivative F, _T t0, const vector<_Dim, _T>& f_t0, _T dt, const butcher_table<_Order, _T>& table, _T eps = 0)
-{
-	vector<_Order, vector<_Dim, _T> > k;
-	k[0] = F(t0, f_t0);
-	/**								   	  i-1
-	 * 计算各阶段斜率向量ki=F(t0+ci*dt, f(t0)+dt*Σ{A[i,j]*kj})
-	 * 									  j=0
+	/**		   i-1
+	 * f(t0)+dt*Σ{A[i,j]*kj})
+	 * 	       j=0
 	 * 其中A、b、c为butcher_table中的参数值，即各ki斜率向量的权重。
 	 */
-	for(size_t i = 1; i < _Order; ++i)
+	vector<_Dim, _T> df = vector<_Dim, _T>::zero();
+	for(size_t j = 0; j < i; ++j)
 	{
-		vector<_Dim, _T> df = vector<_Dim, _T>::zero();
-		for(size_t j = 0; j < i; ++j)
+		_T Aij = table.A[i][j];
+		if(!is_zero(Aij, eps))
 		{
-			_T Aij = table.A[i][j];
-			if(!is_zero(Aij, eps))
-			{
-				df += Aij * k[j];
-			}
+			df += Aij * k[j];
 		}
-		k[i] = F(t0 + table.c[i] * dt, f_t0 + df * dt);
 	}
-	/**				  _Order-1
+	return f_t0 + df * dt;
+}
+
+/**
+ * @brief 根据计算出满足精度要求的ki数组计算最终的原函数值。
+ */
+template<size_t _Dim, size_t _Stage, typename _T>
+__attribute__((always_inline)) inline vector<_Dim, _T> final_val(const vector<_Dim, _T>& f_t0, _T dt, const vector<_Stage, vector<_Dim, _T> >& k, const butcher_table<_Stage, _T>& table, _T eps = 0)
+{
+	/**				  _Stage-1
 	 * f(t0+dt)=f(t0)+dt*Σ{bi*ki}
 	 * 					i=0
 	 */
 	vector<_Dim, _T> df = vector<_Dim, _T>::zero();
-	for(size_t i = 0; i < _Order; ++i)
+	for(size_t i = 0; i < _Stage; ++i)
 	{
 		_T bi = table.b[i];
 		if(!is_zero(bi, eps))
@@ -420,6 +424,88 @@ vector<_Dim, _T> explicit_runge_kutta_step(_Derivative F, _T t0, const vector<_D
 		}
 	}
 	return f_t0 + df * dt;
+}
+
+/**
+ * @brief _Stage阶显式龙格库塔法单步积分。F的调用次数为_Stage。
+ * 		  给定原函数在t0时刻的初始值，计算其在t0+step_size处的值。
+ * @param F 原函数的导数数值计算函数F
+ * @param t0 积分起点
+ * @param f_t0 原函数f(t)在t0时刻的初始值f(t0)，即F在t0的积分值
+ * @param dt 单步积分步长，步长越小积分精度越高。
+ * @param table 算法参数表
+ */
+template<size_t _Dim, size_t _Stage, typename _T, typename _Derivative>
+vector<_Dim, _T> explicit_step(_Derivative F, _T t0, const vector<_Dim, _T>& f_t0, _T dt, const butcher_table<_Stage, _T>& table, _T eps = 0)
+{
+	vector<_Stage, vector<_Dim, _T> > k;
+	k[0] = F(t0, f_t0);
+	/**
+	 * 计算各阶段斜率向量ki=F(t0+ci*dt, predicted_val(i)})
+	 * 其中A、b、c为butcher_table中的参数值，即各ki斜率向量的权重。
+	 */
+	for(size_t i = 1; i < _Stage; ++i)
+	{
+		k[i] = F(t0 + table.c[i] * dt, predicted_val(i, f_t0, dt, k, table, eps));
+	}
+	return final_val(f_t0, dt, k, table, eps);
+}
+
+template<size_t _Dim, size_t _Stage, typename _T, typename _Derivative>
+vector<_Dim, _T> implicit_newton_step(_Derivative F, _T t0, const vector<_Dim, _T>& f_t0, _T dt, const butcher_table<_Stage, _T>& table, _T eps = 0, size_t max_iter = 20)
+{
+	vector<_Stage, vector<_Dim, _T> > k;
+	k[0] = F(t0, f_t0);
+	//设置k数组Newton迭代初始值全部为k0
+	for(size_t i = 1; i < _Stage; ++i)
+	{
+		k[i] = k[0];
+	}
+	//开始Newton迭代法
+	vector<_Stage, vector<_Dim, _T> > k_residual; //ki下一步预测值与当前值之间的差值
+	//@formatter:off
+	/**以_Stage=3，_Dim=2为例，构建_Stage*_Dim的6x6矩阵
+	 	∂k₁(s+1)/∂k₁(s)  ∂k₂(s+1)/∂k₂(s)  ∂k₃(s+1)/∂k₃(s)   ← 其中s为stage数，即下一级ki关于本级ki各分量的偏导数矩阵Ji，是_Dim x _Dim的方阵
+	  ┌────────────────┬────────────────┬────────────────┐
+	  │ I(_Dim)-dtA₁₁J₁│     -dtA₁₂J₁   │     -dtA₁₃J₁   │  ← 第1级，I(_Dim)为_Dim阶恒等矩阵，Aij为Butcher表中的A矩阵参数
+	  ├────────────────┼────────────────┼────────────────┤
+	  │     -dtA₂₁J₂   │ I(_Dim)-dtA₂₂J₂│     -dtA₂₃J₂   │  ← 第2级
+	  ├────────────────┼────────────────┼────────────────┤
+	  │     -dtA₃₁J₃   │     -dtA₃₂J₃   │ I(_Dim)-dtA₃₃J₃│  ← 第3级，直到第_Stage级，整个矩阵是_Stage x _Stage块，每一块是_Dim x _Dim的Jacobi矩阵
+	  └────────────────┴────────────────┴────────────────┘
+	 *///@formatter:on
+	matrix<_Stage, _Stage, matrix<_Dim, _Dim, _T> > k_JG;	//隐式RK法的全局Jacobi矩阵
+	for(size_t iter = 0; iter < max_iter; ++iter)
+	{
+		//单次迭代过程中求解所有_Stage级的ki残差
+		for(size_t i = 1; i < _Stage; ++i)
+		{
+			// 导数Fi(t, fi)从数学上讲实际上只依赖于t，但这里需要知道Fi相对于fi各分量的偏导数
+			//Fi.value是计算出的ki估值，Fi.derivative就是ki关于ki各分量的偏导数
+			ad_point<_Dim, _Dim, _T> Fi = F(t0 + table.c[i] * dt, predicted_val(i, f_t0, dt, k, table, eps)); //计算fi预测值及偏导数
+			k_residual[i] = k[i] - Fi.value;
+			for(size_t j = 0; j < _Stage; ++j)
+			{
+				if(i == j)
+				{
+					k_JG[i][j] = identity<matrix<_Dim, _Dim, _T> >() - (dt * table.A[i][j]) * Fi.derivative;
+				}
+				else
+				{
+					k_JG[i][j] = -(dt * table.A[i][j]) * Fi.derivative;
+				}
+			}
+		}
+		//求解完毕后所有残差同时联立求解线性方程组
+		//k_residual、k_derivative全部纵向拼接
+		vector<_Dim * _Stage, _T>& KR = (vector<_Dim * _Stage, _T>&)k_residual;
+		matrix<_Dim * _Stage, _Dim * _Stage, _T>& JG = (matrix<_Dim * _Stage, _Dim * _Stage, _T>&)k_JG;		//TODO 矩阵拼接转换
+		vector<_Dim * _Stage, _T>& dK;
+		solve_linear_system(JG, dK, KR);
+	}
+	return calc_integral(f_t0, dt, k, table, eps);
+}
+
 }
 
 }

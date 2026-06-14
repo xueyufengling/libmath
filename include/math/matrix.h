@@ -30,6 +30,11 @@ public:
 	inline operator elem_type*()\
 	{\
 		return elem;\
+	}\
+	template<size_t _Row2, size_t _Column2>\
+	inline operator math::matrix<_Row2, _Column2, elem_type>&()\
+	{\
+		return *(math::matrix<_Row2, _Column2, elem_type>*)this;\
 	}
 	__def_matrix_op_cast_ptr__(_T)
 
@@ -500,11 +505,53 @@ matrix<_Row, _Column, _Result> ref(const matrix<_Row, _Column, _T>& mat, _T eps,
 }
 
 /**
+ * @brief REF回代法求解线性方程组
+ */
+template<size_t _Order, typename _T, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
+bool solve_linear_system(const matrix<_Order, _Order, _T>& coeff_mat, vector<_Order, _Result>& solution, const vector<_Order, _T>& vals, _T eps = 0)
+{
+	//将系数矩阵和值向量横向拼接成增广矩阵
+	matrix<_Order, _Order + 1, _T> augmented;
+	for(size_t i = 0; i < _Order; ++i)
+	{
+		for(size_t j = 0; j < _Order; ++j)
+			augmented[i][j] = coeff_mat[i][j];
+		augmented[i][_Order] = vals[i];
+	}
+	size_t rank;
+	auto ref_mat = ref(augmented, eps, &rank);
+	//有解时增广矩阵必定满秩，且REF是上梯形矩阵且对角线不为0，直接从最后一行回代
+	if(rank < _Order)
+	{
+		//无穷多解
+		return false;
+	}
+	else
+	{
+		for(size_t i = _Order; i--;)
+		{
+			_Result sum = ref_mat[i][_Order]; //ref_mat是增广矩阵，维度为_Order x _Order+1
+			for(size_t j = i + 1; j < _Order; ++j)
+			{
+				sum -= ref_mat[i][j] * solution[j];
+			}
+			if(is_zero(ref_mat[i][i], eps))
+			{
+				//rank<_Order时可能无解或无穷多解
+				return false;
+			}
+			solution[i] = sum / ref_mat[i][i];
+		}
+		return true;
+	}
+}
+
+/**
  * 秩
  * 相对于ref()的优化
  */
 template<size_t _Row, size_t _Column, typename _T, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
-size_t rank(const matrix<_Row, _Column, _T>& mat, _T eps)
+size_t rank(const matrix<_Row, _Column, _T>& mat, _T eps = 0)
 {
 	matrix<_Row, _Column, _Result> ref = mat;
 	size_t rank = 0;
@@ -538,7 +585,7 @@ size_t rank(const matrix<_Row, _Column, _T>& mat, _T eps)
  * 相对于ref()的优化
  */
 template<size_t _Order, typename _T, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
-_Result det(const matrix<_Order, _Order, _T>& mat, _T eps)
+_Result det(const matrix<_Order, _Order, _T>& mat, _T eps = 0)
 {
 	matrix<_Order, _Order, _T> temp = mat;
 	_Result det = _Result(1);
@@ -653,7 +700,7 @@ public:
 
 	__def_matrix_op_complete_pivot_coord__(_T, 1, 1)
 
-	//交换行
+//交换行
 	__def_matrix_op_swap_row__(_T, 1, 1)
 
 	__def_matrix_op_sum__(_T, 1, 1)
@@ -881,7 +928,7 @@ public:
 
 	__def_matrix_op_mask__(_T, 2, 2)
 
-	//交换列
+//交换列
 			inline matrix<2,
 	2, _T>& swap_column(size_t column1, size_t column2)
 	{
@@ -1123,7 +1170,7 @@ public:
 
 	__def_matrix_op_complete_pivot_coord__(_T, 3, 3)
 
-	//交换行
+//交换行
 	__def_matrix_op_swap_row__(_T, 3, 3)
 
 	__def_matrix_op_sum__(_T, 3, 3)
@@ -1132,7 +1179,7 @@ public:
 
 	__def_matrix_op_mask__(_T, 3, 3)
 
-	//交换列
+//交换列
 			inline matrix<3,
 	3, _T>& swap_column(size_t column1, size_t column2)
 	{
@@ -1402,7 +1449,7 @@ public:
 
 	__def_matrix_op_complete_pivot_coord__(_T, 4, 4)
 
-	//交换行
+//交换行
 	__def_matrix_op_swap_row__(_T, 4, 4)
 
 	__def_matrix_op_sum__(_T, 4, 4)
@@ -1411,7 +1458,7 @@ public:
 
 	__def_matrix_op_mask__(_T, 4, 4)
 
-	//交换列
+//交换列
 			inline matrix<4,
 	4, _T>& swap_column(size_t column1, size_t column2)
 	{
@@ -1711,7 +1758,7 @@ public:
 
 	__def_matrix_op_complete_pivot_coord__(_T, 6, 6)
 
-	//交换行
+//交换行
 	__def_matrix_op_swap_row__(_T, 6, 6)
 
 	__def_matrix_op_sum__(_T, 6, 6)

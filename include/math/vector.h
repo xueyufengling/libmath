@@ -27,12 +27,17 @@ public:
 	static const size_t dim = vec_dim;
 	__def_vector_members__(_T, _Dim)
 
-#define __def_vector_op_cast_ptr__(coord_type)\
+#define __def_vector_op_cast__(coord_type)\
 	inline operator coord_type*()\
 	{\
 		return coord;\
+	}\
+	template<size_t _Dim2>\
+	inline operator math::vector<_Dim2, elem_type>&()\
+	{\
+		return *(math::vector<_Dim2, elem_type>*)this;\
 	}
-	__def_vector_op_cast_ptr__(_T)
+	__def_vector_op_cast__(_T)
 
 	/**
 	 * 坐标
@@ -374,7 +379,7 @@ class vector<1, _T>
 public:
 	__def_vector_members__(_T, 1)
 
-	__def_vector_op_cast_ptr__(_T)
+	__def_vector_op_cast__(_T)
 
 	__def_vector_op_coord__(_T)
 
@@ -538,7 +543,7 @@ class vector<2, _T>
 public:
 	__def_vector_members__(_T, 2)
 
-	__def_vector_op_cast_ptr__(_T)
+	__def_vector_op_cast__(_T)
 
 	__def_vector_op_coord__(_T)
 
@@ -711,7 +716,7 @@ class vector<3, _T>
 public:
 	__def_vector_members__(_T, 3)
 
-	__def_vector_op_cast_ptr__(_T)
+	__def_vector_op_cast__(_T)
 
 	__def_vector_op_coord__(_T)
 
@@ -893,7 +898,7 @@ class vector<4, _T>
 public:
 	__def_vector_members__(_T, 4)
 
-	__def_vector_op_cast_ptr__(_T)
+	__def_vector_op_cast__(_T)
 
 	__def_vector_op_coord__(_T)
 
@@ -1084,7 +1089,7 @@ class vector<6, _T>
 public:
 	__def_vector_members__(_T, 6)
 
-	__def_vector_op_cast_ptr__(_T)
+	__def_vector_op_cast__(_T)
 
 	__def_vector_op_coord__(_T)
 
@@ -1304,7 +1309,7 @@ class vector<7, _T>
 public:
 	__def_vector_members__(_T, 7)
 
-	__def_vector_op_cast_ptr__(_T)
+	__def_vector_op_cast__(_T)
 
 	__def_vector_op_coord__(_T)
 
