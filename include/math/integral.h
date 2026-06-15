@@ -10,6 +10,7 @@
 #include <math/matrix.h>
 #include <math/algebra.h>
 #include <math/auto_diff.h>
+#include <math/iterate.h>
 
 namespace math
 {
@@ -451,29 +452,26 @@ vector<_Dim, _T> explicit_step(_Derivative F, _T t0, const vector<_Dim, _T>& f_t
 	return final_val(f_t0, dt, k, table, eps);
 }
 
+// TODO 拼接JG矩阵
 template<size_t _Dim, size_t _Stage, typename _T, typename _Derivative>
 vector<_Dim, _T> implicit_newton_step(_Derivative F, _T t0, const vector<_Dim, _T>& f_t0, _T dt, const butcher_table<_Stage, _T>& table, _T eps = 0, size_t max_iter = 20)
 {
 	vector<_Stage, vector<_Dim, _T> > k;
 	k[0] = F(t0, f_t0);
-	//设置k数组Newton迭代初始值全部为k0
+	//设置k数组Newton迭代猜测解全部为k0
 	for(size_t i = 1; i < _Stage; ++i)
 	{
 		k[i] = k[0];
 	}
-	//开始Newton迭代法
 	vector<_Stage, vector<_Dim, _T> > k_residual; //ki下一步预测值与当前值之间的差值
 	//@formatter:off
+	//构建牛顿迭代法的使用的F和J。
 	/**以_Stage=3，_Dim=2为例，构建_Stage*_Dim的6x6矩阵
-	 	∂k₁(s+1)/∂k₁(s)  ∂k₂(s+1)/∂k₂(s)  ∂k₃(s+1)/∂k₃(s)   ← 其中s为stage数，即下一级ki关于本级ki各分量的偏导数矩阵Ji，是_Dim x _Dim的方阵
-	  ┌────────────────┬────────────────┬────────────────┐
-	  │ I(_Dim)-dtA₁₁J₁│     -dtA₁₂J₁   │     -dtA₁₃J₁   │  ← 第1级，I(_Dim)为_Dim阶恒等矩阵，Aij为Butcher表中的A矩阵参数
-	  ├────────────────┼────────────────┼────────────────┤
-	  │     -dtA₂₁J₂   │ I(_Dim)-dtA₂₂J₂│     -dtA₂₃J₂   │  ← 第2级
-	  ├────────────────┼────────────────┼────────────────┤
-	  │     -dtA₃₁J₃   │     -dtA₃₂J₃   │ I(_Dim)-dtA₃₃J₃│  ← 第3级，直到第_Stage级，整个矩阵是_Stage x _Stage块，每一块是_Dim x _Dim的Jacobi矩阵
-	  └────────────────┴────────────────┴────────────────┘
-	 *///@formatter:on
+	   ∂k₁(s+1)/∂k₁(s)  ∂k₂(s+1)/∂k₂(s)  ∂k₃(s+1)/∂k₃(s)     ← 其中s为stage数，即下一级ki关于本级ki各分量的偏导数矩阵Ji，是_Dim x _Dim的方阵
+	 [  I - dt A₁₁ J₁      -dt A₁₂ J₁        -dt A₁₃ J₁    ] ← 第1级，I为_Dim阶恒等矩阵，Aij为Butcher表中的A矩阵参数
+	 [  -dt A₂₁ J₂      I - dt A₂₂ J₂        -dt A₂₃ J₂    ] ← 第2级
+	 [  -dt A₃₁ J₃        -dt A₃₂ J₃      I - dt A₃₃ J₃    ] ← 第3级，直到第_Stage级，整个矩阵是_Stage x _Stage块，每一块是_Dim x _Dim的Jacobi矩阵
+	 */ //@formatter:on
 	matrix<_Stage, _Stage, matrix<_Dim, _Dim, _T> > k_JG;	//隐式RK法的全局Jacobi矩阵
 	for(size_t iter = 0; iter < max_iter; ++iter)
 	{

@@ -47,6 +47,46 @@ inline _T zero()
 	return __zero_impl<_T, _Op>::value();
 }
 
+template<typename T>
+struct precision
+{
+	inline static T& default_val()
+	{
+		static T value = T(0);
+		return value;
+	}
+};
+
+template<>
+struct precision<float>
+{
+	inline static float& default_val()
+	{
+		static float value = 1e-6f;
+		return value;
+	}
+};
+
+template<>
+struct precision<double>
+{
+	inline static double& default_val()
+	{
+		static double value = 1e-14;
+		return value;
+	}
+};
+
+template<>
+struct precision<__float128>
+{
+	inline static __float128& default_val()
+	{
+		static __float128 value = 1e-28;
+		return value;
+	}
+};
+
 /**
  * 可带容差地判断是否是零元
  */
