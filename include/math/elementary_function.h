@@ -735,6 +735,26 @@ inline complex<_T> arccsch(const complex<_T>& z)
 {
 	return ln((1 + sqrt(1 + z * z)) / z);
 }
+
+/**
+ * 其他常用函数
+ */
+
+/**
+ * 阶乘，仅自然数有定义
+ */
+template<typename _T>
+inline constexpr _T factorial(_T k)
+{
+	return k == 0 ? 1 : factorial<_T>(k - 1) * k;
+}
+
+template<typename _T, size_t _K>
+inline constexpr _T factorial(void)
+{
+	return _K == 0 ? 1 : factorial<_T, _K - 1> * _K;
+}
+
 }
 
 #endif//_MATH_ELEMENTARYFUNCTION

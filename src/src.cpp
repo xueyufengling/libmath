@@ -1,5 +1,11 @@
-#include <math/vector.h>
-#include <math/matrix.h>
-#include <math/quaternion.h>
+#include <math/algebra.h>
 #include <math/auto_diff.h>
-
+#include <math/complex.h>
+#include <math/constant.h>
+#include <math/elementary_function.h>
+#include <math/function_transform.h>
+#include <math/integral.h>
+#include <math/iterate.h>
+#include <math/matrix_transform.h>
+#include <math/quaternion.h>
+#include <math/tensor.h>

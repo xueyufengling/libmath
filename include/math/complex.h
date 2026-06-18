@@ -287,6 +287,7 @@ template<typename _T>
 struct __complex_op_impl
 {
 	typedef _T type;
+	typedef complex<_T> complex_type;
 
 	// 实数
 	inline static constexpr _T Re(_T r)
@@ -307,7 +308,7 @@ struct __complex_op_impl
 	/**
 	 * @brief 纯虚数
 	 */
-	inline static constexpr _T iz(_T r)
+	inline static constexpr complex<_T> iz(_T r)
 	{
 		return
 		{	0, r};
@@ -318,6 +319,7 @@ template<typename _T>
 struct __complex_op_impl<complex<_T> >
 {
 	typedef complex<_T> type;
+	typedef complex<_T> complex_type;
 
 	// 复数特化
 	inline static constexpr _T Re(const complex<_T>& z)
@@ -389,7 +391,7 @@ inline constexpr typename __complex_op_impl<_T>::type arg(const _T& z)
  */
 template<typename _T>
 inline constexpr
-typename __complex_op_impl<_T>::type iz(const _T& z)
+typename __complex_op_impl<_T>::complex_type iz(const _T& z)
 {
 	return __complex_op_impl<_T>::iz(z);
 }

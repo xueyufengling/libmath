@@ -3,7 +3,7 @@
 
 #include <tplmp/base.h>
 
-#include <math/vector.h>
+#include <math/tensor.h>
 #include <math/algebra.h>
 
 /**
@@ -19,15 +19,15 @@ namespace math
  *		  但F(x(i))的值会随着迭代次数收敛，最终F(x(i))<eps时即可认为迭代到了满足误差范围的精确解。
  */
 template<size_t _Dim, typename _T, typename _Equation, typename _Derivative>
-bool newton_iterate(_Equation F, _Derivative J, vector<_Dim, _T>& x0, _T eps = precision<_T>::default_val(), size_t max_iter = 20, _T linear_eps = precision<_T>::default_val())
+bool newton_iterate(_Equation F, _Derivative J, vector<_T, _Dim>& x0, _T eps = precision<_T>::default_val(), size_t max_iter = 20, _T linear_eps = precision<_T>::default_val())
 {
 	bool solve_success = false;
 	for(size_t iter = 0; iter < max_iter; ++iter)
 	{
-		vector<_Dim, _T> _Fxi = -F(x0);
+		vector<_T, _Dim> _Fxi = -F(x0);
 		if(is_zero(_Fxi.norm(), eps))
 			return true;
-		vector<_Dim, _T> dx = solve_linear_system(J(x0), _Fxi, &solve_success, linear_eps);
+		vector<_T, _Dim> dx = solve_linear_system(J(x0), _Fxi, &solve_success, linear_eps);
 		if(solve_success)
 			x0 += dx;
 		else

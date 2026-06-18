@@ -1,25 +1,24 @@
 #ifndef _MATH_TRANSFORM
 #define _MATH_TRANSFORM
 
-#include <math/vector.h>
-#include <math/matrix.h>
+#include <math/tensor.h>
 #include <math/quaternion.h>
 
 //采用右手坐标系
 namespace math
 {
 //缩放矩阵
-template<size_t _Order, typename _T = float>
-inline matrix<_Order, _Order, _T> scale(_T scale_factor)
+template<size_t _Order, typename _T>
+inline matrix<_T, _Order, _Order> scale(_T scale_factor)
 {
-	return math::identity<matrix<_Order, _T> >() * scale_factor;
+	return math::identity<matrix<_T, _Order, _Order> >() * scale_factor;
 }
 
 //平移矩阵，矩阵维度比矢量大1
-template<size_t _Order, typename _T = float>
-inline matrix<_Order + 1, _Order + 1, _T> shift(vector<_Order, _T>& shift_v)
+template<typename _T, size_t _Order>
+inline matrix<_T, _Order + 1, _Order + 1> shift(vector<_T, _Order>& shift_v)
 {
-	matrix<_Order + 1, _Order + 1, _T> shift_mat = math::identity<matrix<_Order + 1, _Order + 1, _T> >();
+	matrix<_T, _Order + 1, _Order + 1> shift_mat = math::identity<matrix<_T, _Order + 1, _Order + 1> >();
 	for(int i = 0; i <= _Order; ++i)
 		shift_mat[i][_Order] = shift_v[i];
 	return shift_mat;

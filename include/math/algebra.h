@@ -17,6 +17,9 @@ struct mul;
 template<typename _T, typename _Op>
 struct __identity_impl
 {
+	typedef _T type;
+	typedef _Op op;
+
 	inline static _T value()
 	{
 		return _T(1);
@@ -35,6 +38,9 @@ inline _T identity()
 template<typename _T, typename _Op>
 struct __zero_impl
 {
+	typedef _T type;
+	typedef _Op op;
+
 	inline static _T value()
 	{
 		return _T(0);
@@ -108,6 +114,8 @@ inline bool is_zero(_T value, _T eps)
 template<typename _T>
 struct __basis_impl
 {
+	typedef _T type;
+
 	template<typename ..._Indices>
 	static _T value(_Indices ... indices)
 	{

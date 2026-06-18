@@ -4,8 +4,7 @@
 #include <tplmp/base.h>
 
 #include <math/elementary_function.h>
-#include <math/vector.h>
-#include <math/matrix.h>
+#include <math/tensor.h>
 
 namespace math
 {
@@ -26,7 +25,7 @@ public:
 		this->z = z;
 	}
 
-	quaternion(_T w, vector<3, _T> v)
+	quaternion(_T w, vector3<_T> v)
 	{
 		this->w = w;
 		this->x = v[0];
@@ -60,7 +59,7 @@ public:
 		return quaternion<_Result>(w * q.w - x * q.x - y * q.y - z * q.z, y * q.z - q.y * z + w * q.x + q.w * x, z * q.x - q.z * x + w * q.y + q.w * y, x * q.y - q.x * y + w * q.z + q.w * z);
 	}
 
-	static vector<3, _T> rotate(vector<3, _T> v, vector<3, _T> axis, _T rad)
+	static vector3<_T> rotate(vector3<_T> v, vector3<_T> axis, _T rad)
 	{
 		auto p = quaternion(0, v);
 		auto q = quaternion(math::cos(rad / 2), axis * math::sin(rad / 2));
@@ -70,7 +69,7 @@ public:
 	}
 
 	//绕轴转动，四元数转换为旋转矩阵
-	static inline matrix<4, 4, _T> R(vector<3, _T> axis, _T rad)
+	static inline matrix4x4<_T> R(vector3<_T> axis, _T rad)
 	{
 		_T m_elem[] = {math::cos(rad) + axis[0] * axis[0] * (1 - math::cos(rad)),
 				axis[0] * axis[1] * (1 - math::cos(rad)) - axis[2] * math::sin(rad),
@@ -85,7 +84,7 @@ public:
 				math::cos(rad) + axis[2] * axis[2] * (1 - math::cos(rad)),
 				0,
 				0, 0, 0, 1};
-		return tplmp::cast<matrix<4, 4, _T> >(m_elem);
+		return tplmp::cast<matrix4x4<_T> >(m_elem);
 	}
 };
 

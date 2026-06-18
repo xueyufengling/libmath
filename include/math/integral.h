@@ -6,8 +6,7 @@
 #include <sstream>
 
 #include <math/elementary_function.h>
-#include <math/vector.h>
-#include <math/matrix.h>
+#include <math/tensor.h>
 #include <math/algebra.h>
 #include <math/auto_diff.h>
 #include <math/iterate.h>
@@ -32,7 +31,7 @@ struct F_t_dependent
 	static_assert(
 			tplmp::type_equal<
 			typename tplmp::callable_ret<_FuncType, _T>::type,
-			vector<_Dim, _T>
+			vector<_T, _Dim>
 			>::value,
 			"derivative expr must be t-dependent");
 
@@ -43,7 +42,7 @@ struct F_t_dependent
 	{
 	}
 
-	inline vector<_Dim, _T> operator()(_T t, const vector<_Dim, _T>& f_t) const
+	inline vector<_T, _Dim> operator()(_T t, const vector<_T, _Dim>& f_t) const
 	{
 		return F(t);
 	}
@@ -58,8 +57,8 @@ struct F_ft_dependent
 {
 	static_assert(
 			tplmp::type_equal<
-			typename tplmp::callable_ret<_FuncType, vector<_Dim, _T> >::type,
-			vector<_Dim, _T>
+			typename tplmp::callable_ret<_FuncType, vector<_T, _Dim> >::type,
+			vector<_T, _Dim>
 			>::value,
 			"derivative expr must be f(t)-dependent");
 
@@ -70,7 +69,7 @@ struct F_ft_dependent
 	{
 	}
 
-	inline vector<_Dim, _T> operator()(_T t, const vector<_Dim, _T>& f_t) const
+	inline vector<_T, _Dim> operator()(_T t, const vector<_T, _Dim>& f_t) const
 	{
 		return F(f_t);
 	}
@@ -86,16 +85,16 @@ namespace runge_kutta
  * 		  若A为严格的下三角矩阵（对角线及上三角均为0），则属于显式RK法；若A含有对角非零元或上三角非零元，则属于隐式RK法。
  * 		  对保辛系统积分时需要使用隐式RK法，否则系统的哈密顿量会剧烈单调漂移发散。
  */
-template<size_t _Stage, typename _T>
+template<typename _T, size_t _Stage>
 struct butcher_table
 {
-	vector<_Stage, _T> c;
-	matrix<_Stage, _Stage, _T> A;
-	vector<_Stage, _T> b;
+	vector<_T, _Stage> c;
+	matrix<_T, _Stage, _Stage> A;
+	vector<_T, _Stage> b;
 
 	butcher_table() = default;
 
-	butcher_table(const vector<_Stage, _T>& _c, const matrix<_Stage, _Stage, _T>& _A, const vector<_Stage, _T>& _b) :
+	butcher_table(const vector<_T, _Stage>& _c, const matrix<_T, _Stage, _Stage>& _A, const vector<_T, _Stage>& _b) :
 			c(_c), A(_A), b(_b)
 	{
 	}
@@ -145,7 +144,7 @@ struct butcher_table
 };
 
 template<size_t _Stage, typename _T>
-inline std::ostream& operator<<(std::ostream& os, const butcher_table<_Stage, _T>& table)
+inline std::ostream& operator<<(std::ostream& os, const butcher_table<_T, _Stage>& table)
 {
 	os << ((std::string)table);
 	return os;
@@ -155,9 +154,9 @@ inline std::ostream& operator<<(std::ostream& os, const butcher_table<_Stage, _T
  * 欧拉法
  */
 template<typename _T>
-const butcher_table<1, _T>& erk1_euler()
+const butcher_table<_T, 1>& erk1_euler()
 {
-	static const butcher_table<1, _T> table(
+	static const butcher_table<_T, 1> table(
 			{_T(0)},
 			{_T(0)},
 			{_T(1)}
@@ -169,9 +168,9 @@ const butcher_table<1, _T>& erk1_euler()
  * 中点法
  */
 template<typename _T>
-const butcher_table<2, _T>& erk2_midpoint()
+const butcher_table<_T, 2>& erk2_midpoint()
 {
-	static const butcher_table<2, _T> table(
+	static const butcher_table<_T, 2> table(
 			{_T(0), _T(1) / _T(2)},
 			{_T(0), _T(0), _T(1) / _T(2), _T(0)},
 			{_T(0), _T(1)});
@@ -182,9 +181,9 @@ const butcher_table<2, _T>& erk2_midpoint()
  * 改进欧拉法
  */
 template<typename _T>
-const butcher_table<2, _T>& erk2_heun()
+const butcher_table<_T, 2>& erk2_heun()
 {
-	static const butcher_table<2, _T> table(
+	static const butcher_table<_T, 2> table(
 			{_T(0), _T(1)},
 			{_T(0), _T(0), _T(1), _T(0)},
 			{_T(1) / _T(2), _T(1) / _T(2)}
@@ -196,9 +195,9 @@ const butcher_table<2, _T>& erk2_heun()
  * Ralston法
  */
 template<typename _T>
-const butcher_table<2, _T>& erk2_ralston()
+const butcher_table<_T, 2>& erk2_ralston()
 {
-	static const butcher_table<2, _T> table(
+	static const butcher_table<_T, 2> table(
 			{_T(0), _T(2) / _T(3)},
 			{_T(0), _T(0), _T(2) / _T(3), _T(0)},
 			{_T(1) / _T(4), _T(3) / _T(4)}
@@ -210,9 +209,9 @@ const butcher_table<2, _T>& erk2_ralston()
  * 经典RK3法
  */
 template<typename _T>
-const butcher_table<3, _T>& erk3_classic()
+const butcher_table<_T, 3>& erk3_classic()
 {
-	static const butcher_table<3, _T> table(
+	static const butcher_table<_T, 3> table(
 			{_T(0), _T(1) / _T(2), _T(1)},
 			{_T(0), _T(0), _T(0),
 					_T(1) / _T(2), _T(0), _T(0),
@@ -226,9 +225,9 @@ const butcher_table<3, _T>& erk3_classic()
  * Heun三阶法
  */
 template<typename _T>
-const butcher_table<3, _T>& erk3_heun()
+const butcher_table<_T, 3>& erk3_heun()
 {
-	static const butcher_table<3, _T> table(
+	static const butcher_table<_T, 3> table(
 			{_T(0), _T(1) / _T(3), _T(2) / _T(3)},
 			{_T(0), _T(0), _T(0),
 					_T(1) / _T(3), _T(0), _T(0),
@@ -242,9 +241,9 @@ const butcher_table<3, _T>& erk3_heun()
  * Ralston三阶法
  */
 template<typename _T>
-const butcher_table<3, _T>& erk3_ralston()
+const butcher_table<_T, 3>& erk3_ralston()
 {
-	static const butcher_table<3, _T> table(
+	static const butcher_table<_T, 3> table(
 			{_T(0), _T(1) / _T(2), _T(3) / _T(4)},
 			{_T(0), _T(0), _T(0),
 					_T(1) / _T(2), _T(0), _T(0),
@@ -258,9 +257,9 @@ const butcher_table<3, _T>& erk3_ralston()
  * 经典RK4法
  */
 template<typename _T>
-const butcher_table<4, _T>& erk4_classic()
+const butcher_table<_T, 4>& erk4_classic()
 {
-	static const butcher_table<4, _T> table(
+	static const butcher_table<_T, 4> table(
 			{_T(0), _T(1) / _T(2), _T(1) / _T(2), _T(1)},
 			{_T(0), _T(0), _T(0), _T(0),
 					_T(1) / _T(2), _T(0), _T(0), _T(0),
@@ -275,9 +274,9 @@ const butcher_table<4, _T>& erk4_classic()
  * 3/8法则法
  */
 template<typename _T>
-const butcher_table<4, _T>& erk4_three_eighths()
+const butcher_table<_T, 4>& erk4_three_eighths()
 {
-	static const butcher_table<4, _T> table(
+	static const butcher_table<_T, 4> table(
 			{_T(0), _T(1) / _T(3), _T(2) / _T(3), _T(1)},
 			{_T(0), _T(0), _T(0), _T(0),
 					_T(1) / _T(3), _T(0), _T(0), _T(0),
@@ -292,9 +291,9 @@ const butcher_table<4, _T>& erk4_three_eighths()
  * Ralston四阶法
  */
 template<typename _T>
-const butcher_table<4, _T>& erk4_ralston()
+const butcher_table<_T, 4>& erk4_ralston()
 {
-	static const butcher_table<4, _T> table(
+	static const butcher_table<_T, 4> table(
 			{_T(0), _T(4) / _T(10), _T(6) / _T(10), _T(1)},
 			{_T(0), _T(0), _T(0), _T(0),
 					_T(4) / _T(10), _T(0), _T(0), _T(0),
@@ -314,9 +313,9 @@ const butcher_table<4, _T>& erk4_ralston()
  * 2阶辛方法
  */
 template<typename _T>
-const butcher_table<1, _T>& irk1_symplectic_gauss_legendre_1()
+const butcher_table<_T, 1>& irk1_symplectic_gauss_legendre_1()
 {
-	static const butcher_table<1, _T> table(
+	static const butcher_table<_T, 1> table(
 			{_T(1) / _T(2)},
 			{_T(1) / _T(2)},
 			{_T(1)}
@@ -329,10 +328,10 @@ const butcher_table<1, _T>& irk1_symplectic_gauss_legendre_1()
  * 4阶辛方法
  */
 template<typename _T>
-const butcher_table<2, _T>& irk2_symplectic_gauss_legendre_2()
+const butcher_table<_T, 2>& irk2_symplectic_gauss_legendre_2()
 {
 	static const _T sqrt3 = sqrt(_T(3));
-	static const butcher_table<2, _T> table(
+	static const butcher_table<_T, 2> table(
 			{_T(1) / _T(2) - sqrt3 / _T(6),
 					_T(1) / _T(2) + sqrt3 / _T(6)},
 			{_T(1) / _T(4), _T(1) / _T(4) - sqrt3 / _T(6),
@@ -347,10 +346,10 @@ const butcher_table<2, _T>& irk2_symplectic_gauss_legendre_2()
  * 6阶辛方法
  */
 template<typename _T>
-const butcher_table<3, _T>& irk3_symplectic_gauss_legendre_3()
+const butcher_table<_T, 3>& irk3_symplectic_gauss_legendre_3()
 {
 	static const _T sqrt15 = sqrt(_T(15));
-	static const butcher_table<3, _T> table(
+	static const butcher_table<_T, 3> table(
 			{_T(1) / _T(2) - sqrt15 / _T(10),
 					_T(1) / _T(2),
 					_T(1) / _T(2) + sqrt15 / _T(10)},
@@ -367,9 +366,9 @@ const butcher_table<3, _T>& irk3_symplectic_gauss_legendre_3()
  * 4阶辛方法
  */
 template<typename _T>
-const butcher_table<3, _T>& irk3_symplectic_lobatto_iiia()
+const butcher_table<_T, 3>& irk3_symplectic_lobatto_iiia()
 {
-	static const butcher_table<3, _T> table(
+	static const butcher_table<_T, 3> table(
 			{_T(0),
 					_T(1) / _T(2),
 					_T(1)},
@@ -386,14 +385,14 @@ const butcher_table<3, _T>& irk3_symplectic_lobatto_iiia()
  * @param i RK步骤序号，即stage，从0 -> _Stage-1
  */
 template<size_t _Dim, size_t _Stage, typename _T>
-__attribute__((always_inline)) inline vector<_Dim, _T> predicted_val(size_t i, const vector<_Dim, _T>& f_t0, _T dt, const vector<_Stage, vector<_Dim, _T> >& k, const butcher_table<_Stage, _T>& table, _T eps = 0)
+__attribute__((always_inline)) inline vector<_T, _Dim> predicted_val(size_t i, const vector<_T, _Dim>& f_t0, _T dt, const vector<vector<_T, _Dim>, _Stage>& k, const butcher_table<_T, _Stage>& table, _T eps = 0)
 {
 	/**		   i-1
 	 * f(t0)+dt*Σ{A[i,j]*kj})
 	 * 	       j=0
 	 * 其中A、b、c为butcher_table中的参数值，即各ki斜率向量的权重。
 	 */
-	vector<_Dim, _T> df = vector<_Dim, _T>::zero();
+	vector<_T, _Dim> df = vector<_T, _Dim>::zero();
 	for(size_t j = 0; j < i; ++j)
 	{
 		_T Aij = table.A[i][j];
@@ -409,13 +408,13 @@ __attribute__((always_inline)) inline vector<_Dim, _T> predicted_val(size_t i, c
  * @brief 根据计算出满足精度要求的ki数组计算最终的原函数值。
  */
 template<size_t _Dim, size_t _Stage, typename _T>
-__attribute__((always_inline)) inline vector<_Dim, _T> final_val(const vector<_Dim, _T>& f_t0, _T dt, const vector<_Stage, vector<_Dim, _T> >& k, const butcher_table<_Stage, _T>& table, _T eps = 0)
+__attribute__((always_inline)) inline vector<_T, _Dim> final_val(const vector<_T, _Dim>& f_t0, _T dt, const vector<vector<_T, _Dim>, _Stage>& k, const butcher_table<_T, _Stage>& table, _T eps = 0)
 {
 	/**				  _Stage-1
 	 * f(t0+dt)=f(t0)+dt*Σ{bi*ki}
 	 * 					i=0
 	 */
-	vector<_Dim, _T> df = vector<_Dim, _T>::zero();
+	vector<_T, _Dim> df = vector<_T, _Dim>::zero();
 	for(size_t i = 0; i < _Stage; ++i)
 	{
 		_T bi = table.b[i];
@@ -437,9 +436,9 @@ __attribute__((always_inline)) inline vector<_Dim, _T> final_val(const vector<_D
  * @param table 算法参数表
  */
 template<size_t _Dim, size_t _Stage, typename _T, typename _Derivative>
-vector<_Dim, _T> explicit_step(_Derivative F, _T t0, const vector<_Dim, _T>& f_t0, _T dt, const butcher_table<_Stage, _T>& table, _T eps = 0)
+vector<_T, _Dim> explicit_step(_Derivative F, _T t0, const vector<_T, _Dim>& f_t0, _T dt, const butcher_table<_T, _Stage>& table, _T eps = 0)
 {
-	vector<_Stage, vector<_Dim, _T> > k;
+	vector<vector<_T, _Dim>, _Stage> k;
 	k[0] = F(t0, f_t0);
 	/**
 	 * 计算各阶段斜率向量ki=F(t0+ci*dt, predicted_val(i)})
@@ -454,16 +453,16 @@ vector<_Dim, _T> explicit_step(_Derivative F, _T t0, const vector<_Dim, _T>& f_t
 
 // TODO 拼接JG矩阵
 template<size_t _Dim, size_t _Stage, typename _T, typename _Derivative>
-vector<_Dim, _T> implicit_newton_step(_Derivative F, _T t0, const vector<_Dim, _T>& f_t0, _T dt, const butcher_table<_Stage, _T>& table, _T eps = 0, size_t max_iter = 20)
+vector<_T, _Dim> implicit_newton_step(_Derivative F, _T t0, const vector<_T, _Dim>& f_t0, _T dt, const butcher_table<_T, _Stage>& table, _T eps = 0, size_t max_iter = 20)
 {
-	vector<_Stage, vector<_Dim, _T> > k;
+	vector<vector<_T, _Dim>, _Stage> k;
 	k[0] = F(t0, f_t0);
 	//设置k数组Newton迭代猜测解全部为k0
 	for(size_t i = 1; i < _Stage; ++i)
 	{
 		k[i] = k[0];
 	}
-	vector<_Stage, vector<_Dim, _T> > k_residual; //ki下一步预测值与当前值之间的差值
+	vector<vector<_T, _Dim>, _Stage> k_residual; //ki下一步预测值与当前值之间的差值
 	//@formatter:off
 	//构建牛顿迭代法的使用的F和J。
 	/**以_Stage=3，_Dim=2为例，构建_Stage*_Dim的6x6矩阵
@@ -472,7 +471,7 @@ vector<_Dim, _T> implicit_newton_step(_Derivative F, _T t0, const vector<_Dim, _
 	 [  -dt A₂₁ J₂      I - dt A₂₂ J₂        -dt A₂₃ J₂    ] ← 第2级
 	 [  -dt A₃₁ J₃        -dt A₃₂ J₃      I - dt A₃₃ J₃    ] ← 第3级，直到第_Stage级，整个矩阵是_Stage x _Stage块，每一块是_Dim x _Dim的Jacobi矩阵
 	 */ //@formatter:on
-	matrix<_Stage, _Stage, matrix<_Dim, _Dim, _T> > k_JG;	//隐式RK法的全局Jacobi矩阵
+	matrix<matrix<_T, _Dim, _Dim>, _Stage, _Stage> k_JG;	//隐式RK法的全局Jacobi矩阵
 	for(size_t iter = 0; iter < max_iter; ++iter)
 	{
 		//单次迭代过程中求解所有_Stage级的ki残差
@@ -480,13 +479,13 @@ vector<_Dim, _T> implicit_newton_step(_Derivative F, _T t0, const vector<_Dim, _
 		{
 			// 导数Fi(t, fi)从数学上讲实际上只依赖于t，但这里需要知道Fi相对于fi各分量的偏导数
 			//Fi.value是计算出的ki估值，Fi.derivative就是ki关于ki各分量的偏导数
-			ad_point<_Dim, _Dim, _T> Fi = F(t0 + table.c[i] * dt, predicted_val(i, f_t0, dt, k, table, eps)); //计算fi预测值及偏导数
+			ad_point<_T, _Dim, _Dim> Fi = F(t0 + table.c[i] * dt, predicted_val(i, f_t0, dt, k, table, eps)); //计算fi预测值及偏导数
 			k_residual[i] = k[i] - Fi.value;
 			for(size_t j = 0; j < _Stage; ++j)
 			{
 				if(i == j)
 				{
-					k_JG[i][j] = identity<matrix<_Dim, _Dim, _T> >() - (dt * table.A[i][j]) * Fi.derivative;
+					k_JG[i][j] = identity<matrix<_T, _Dim, _Dim> >() - (dt * table.A[i][j]) * Fi.derivative;
 				}
 				else
 				{
@@ -496,9 +495,9 @@ vector<_Dim, _T> implicit_newton_step(_Derivative F, _T t0, const vector<_Dim, _
 		}
 		//求解完毕后所有残差同时联立求解线性方程组
 		//k_residual、k_derivative全部纵向拼接
-		vector<_Dim * _Stage, _T>& KR = (vector<_Dim * _Stage, _T>&)k_residual;
-		matrix<_Dim * _Stage, _Dim * _Stage, _T>& JG = (matrix<_Dim * _Stage, _Dim * _Stage, _T>&)k_JG;		//TODO 矩阵拼接转换
-		vector<_Dim * _Stage, _T>& dK;
+		vector<_T, _Dim * _Stage>& KR = (vector<_T, _Dim * _Stage>&)k_residual;
+		matrix<_T, _Dim * _Stage, _Dim * _Stage>& JG = (matrix<_T, _Dim * _Stage, _Dim * _Stage>&)k_JG;		//TODO 矩阵拼接转换
+		vector<_T, _Dim * _Stage>& dK;
 		solve_linear_system(JG, dK, KR);
 	}
 	return calc_integral(f_t0, dt, k, table, eps);
