@@ -14,6 +14,85 @@ namespace math
 template<typename _T, size_t ..._Dims>
 struct tensor;
 
+/**
+ * 从_Dims中取指定索引的维度组成类tensor类型，_TensorTpl是模板参数与tensor一致的模板
+ */
+template<template<typename, size_t...> typename _TensorTpl, typename _T, typename _Indexes, size_t ... _Dims>
+struct tensortpl_of_dims;
+
+template<template<typename, size_t...> typename _TensorTpl, typename _T, size_t ... _Indexes, size_t ... _Dims>
+struct tensortpl_of_dims<_TensorTpl, _T, tplmp::type_pack<tplmp::_constexpr<size_t, _Indexes> ...>, _Dims...>
+{
+	typedef _TensorTpl<_T, tplmp::size_t_at<_Indexes, _Dims...>::value...> type;
+};
+
+template<template<typename, size_t...> typename _TensorTpl, typename _T, size_t _Order, size_t ... _Dims>
+struct tensortpl_of_dims_front
+{
+	typedef typename tensortpl_of_dims<_TensorTpl, _T, tplmp::index_sequence_t<size_t, 0, _Order>, _Dims...>::type type;
+};
+
+template<template<typename, size_t...> typename _TensorTpl, typename _T, size_t _Order, size_t ... _Dims>
+struct tensortpl_of_dims_back
+{
+	typedef typename tensortpl_of_dims<_TensorTpl, _T, tplmp::index_sequence_t<size_t, sizeof...(_Dims) - _Order, _Order>, _Dims...>::type type;
+};
+
+template<typename _T, typename _Seq, size_t ... _Dims>
+struct tensor_of_dims
+{
+	typedef typename tensortpl_of_dims<tensor, _T, _Seq, _Dims...>::type type;
+};
+
+template<typename _T, size_t _Order, size_t ... _Dims>
+struct tensor_of_dims_front
+{
+	typedef typename tensortpl_of_dims_front<tensor, _T, _Order, _Dims...>::type type;
+};
+
+template<typename _T, size_t _Order, size_t ... _Dims>
+struct tensor_of_dims_back
+{
+	typedef typename tensortpl_of_dims_back<tensor, _T, _Order, _Dims...>::type type;
+};
+
+/**
+ * @brief 张量升阶
+ * @param _OuterDims 新增的最外层维度
+ */
+template<template<typename, size_t...> typename _TensorTpl, typename _T, typename _TensorDims, size_t ..._OuterDims>
+struct higher_order_tensortpl;
+
+template<template<typename, size_t...> typename _TensorTpl, typename _T, size_t ... _TensorDims, size_t ..._OuterDims>
+struct higher_order_tensortpl <_TensorTpl, _T, tplmp::type_pack<tplmp::_size_t<_TensorDims>...>, _OuterDims...>
+{
+	typedef _TensorTpl<_T, _OuterDims..., _TensorDims...> type;
+};
+
+template<typename _Tensor, size_t ..._OuterDims>
+struct higher_order_tensor
+{
+	typedef typename higher_order_tensortpl<tensor, typename _Tensor::data_type, typename _Tensor::dim_t, _OuterDims...>::type type;
+};
+
+/**
+ * @brief 张量降阶，去除最外层_RmOrders个维度
+ */
+template<template<typename, size_t...> typename _TensorTpl, typename _T, typename _TensorDims, size_t _RmOrders>
+struct lower_order_tensortpl;
+
+template<template<typename, size_t...> typename _TensorTpl, typename _T, size_t... _TensorDims, size_t _RmOrders>
+struct lower_order_tensortpl<_TensorTpl, _T, tplmp::type_pack<tplmp::_size_t<_TensorDims>...>, _RmOrders>
+{
+	typedef typename tensortpl_of_dims_back<_TensorTpl, _T, sizeof...(_TensorDims) - _RmOrders, _TensorDims...>::type type;
+};
+
+template<typename _Tensor, size_t _RmOrders>
+struct lower_order_tensor
+{
+	typedef typename lower_order_tensortpl<tensor, typename _Tensor::data_type, typename _Tensor::dim_t, _RmOrders>::type type;
+};
+
 template<typename _T>
 using scalar = tensor<_T>;
 
@@ -33,8 +112,12 @@ struct tensor<_T>
 	typedef _T data_type;
 	typedef _T comp_type;
 
-	static const size_t order = 0;
-	static constexpr size_t dim[order] = {};
+	static constexpr size_t outmost_dim = 0;
+
+	static constexpr size_t order = 0;
+	static const size_t dim[order];
+
+	typedef tplmp::type_pack<> dim_t;
 
 	tensor() = default;
 
@@ -68,8 +151,18 @@ struct tensor<_T>
 		return (_T2)(comp);
 	}
 
+	inline comp_type& operator[](size_t i)
+	{
+		return comp;
+	}
+
+	inline const comp_type& operator[](size_t i) const
+	{
+		return comp;
+	}
+
 	template<typename _T2>
-	inline scalar<_T>& operator=(const scalar<_T2>& T)
+	inline scalar<_T>& operator=(const tensor<_T2>& T)
 	{
 		comp = (_T)T.comp;
 		return *this;
@@ -90,52 +183,52 @@ struct tensor<_T>
 	//张量形式
 
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() + tplmp::decl<_T2>::val())>
-	inline scalar<_Result> operator+(const scalar<_T2>& rhs) const
+	inline scalar<_Result> operator+(const tensor<_T2>& rhs) const
 	{
 		return (_Result)(comp + rhs.comp);
 	}
 
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() - tplmp::decl<_T2>::val())>
-	inline _Result operator-(const scalar<_T2>& rhs) const
+	inline _Result operator-(const tensor<_T2>& rhs) const
 	{
-		return (_Result)(comp + rhs.comp);
+		return (_Result)(comp - rhs.comp);
 	}
 
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
-	inline _Result operator*(const scalar<_T2>& rhs) const
+	inline _Result operator*(const tensor<_T2>& rhs) const
 	{
 		return _Result(comp * rhs.comp);
 	}
 
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
-	inline _Result operator/(const scalar<_T2>& rhs) const
+	inline _Result operator/(const tensor<_T2>& rhs) const
 	{
 		return (_Result)(comp / rhs.comp);
 	}
 
 	template<typename _T2>
-	inline tensor<_T>& operator+=(const scalar<_T2>& rhs)
+	inline tensor<_T>& operator+=(const tensor<_T2>& rhs)
 	{
 		comp += rhs.comp;
 		return *this;
 	}
 
 	template<typename _T2>
-	inline tensor<_T>& operator-=(const scalar<_T2>& rhs)
+	inline tensor<_T>& operator-=(const tensor<_T2>& rhs)
 	{
 		comp -= rhs.comp;
 		return *this;
 	}
 
 	template<typename _T2>
-	inline tensor<_T>& operator*=(const scalar<_T2>& rhs)
+	inline tensor<_T>& operator*=(const tensor<_T2>& rhs)
 	{
 		comp *= rhs.comp;
 		return *this;
 	}
 
 	template<typename _T2>
-	inline tensor<_T>& operator/=(const scalar<_T2>& rhs)
+	inline tensor<_T>& operator/=(const tensor<_T2>& rhs)
 	{
 		comp /= rhs.comp;
 		return *this;
@@ -198,85 +291,130 @@ struct tensor<_T>
 	}
 };
 
+template<typename T>
+constexpr size_t tensor<T>::dim[tensor<T>::order] = {};
+
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() + tplmp::decl<_T2>::val())>
-inline _Result operator+(const _T1& lhs, const scalar<_T2>& rhs)
+inline _Result operator+(const _T1& lhs, const tensor<_T2>& rhs)
 {
 	return (_Result)(lhs + rhs.comp);
 }
 
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() + tplmp::decl<_T2>::val())>
-inline _Result operator+(const scalar<_T1>& lhs, const _T2& rhs)
+inline _Result operator+(const tensor<_T1>& lhs, const _T2& rhs)
 {
 	return (_Result)(lhs.comp + rhs);
 }
 
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() - tplmp::decl<_T2>::val())>
-inline _Result operator-(const _T1& lhs, const scalar<_T2>& rhs)
+inline _Result operator-(const _T1& lhs, const tensor<_T2>& rhs)
 {
 	return (_Result)(lhs - rhs.comp);
 }
 
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() - tplmp::decl<_T2>::val())>
-inline _Result operator-(const scalar<_T1>& lhs, const _T2& rhs)
+inline _Result operator-(const tensor<_T1>& lhs, const _T2& rhs)
 {
 	return (_Result)(lhs.comp - rhs);
 }
 
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
-inline _Result operator*(const _T1& lhs, const scalar<_T2>& rhs)
+inline _Result operator*(const _T1& lhs, const tensor<_T2>& rhs)
 {
 	return (_Result)(lhs * rhs.comp);
 }
 
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
-inline _Result operator*(const scalar<_T1>& lhs, const _T2& rhs)
+inline _Result operator*(const tensor<_T1>& lhs, const _T2& rhs)
 {
 	return (_Result)(lhs.comp * rhs);
 }
 
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
-inline _Result operator/(const _T1& lhs, const scalar<_T2>& rhs)
+inline _Result operator/(const _T1& lhs, const tensor<_T2>& rhs)
 {
 	return (_Result)(lhs / rhs.comp);
 }
 
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val())>
-inline _Result operator/(const scalar<_T1>& lhs, const _T2& rhs)
+inline _Result operator/(const tensor<_T1>& lhs, const _T2& rhs)
 {
 	return (_Result)(lhs.comp / rhs);
 }
 
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
-inline scalar<_Result> hadamard(const scalar<_T1>& lhs, const scalar<_T2>& rhs)
+inline scalar<_Result> hadamard(const tensor<_T1>& lhs, const tensor<_T2>& rhs)
 {
 	return
 	{	(_Result)(lhs.comp * rhs.comp)};
 }
 
 template<typename _T, typename _Result = _T>
-inline _Result frobenius_norm(const scalar<_T>& T)
+inline _Result frobenius_norm(const tensor<_T>& T)
 {
 	return math::template sqrt<_Result>(T.comp * T.comp);
 }
 
-template<typename _T, size_t _Dim, size_t ..._Dims>
-struct tensor<_T, _Dim, _Dims...>
+template<typename _T, size_t ..._Dims>
+struct tensor
 {
-	typedef tensor<_T, _Dim, _Dims...> type;
+	typedef tensor<_T, _Dims...> type;
 	typedef _T data_type;
-	typedef tensor<_T, _Dims...> comp_type;
 
 	/**
 	 * @brief 张量阶数
 	 */
-	static const size_t order = sizeof...(_Dims) + 1;
+	static constexpr size_t order = sizeof...(_Dims);
 
 	/**
 	 * @brief 张量各个模的维度
 	 */
-	static constexpr size_t dim[order] = {_Dim, _Dims...};
+	static const size_t dim[order];
 
-	comp_type comp[_Dim];
+	static constexpr size_t outmost_dim = dim[0];
+
+	typedef tplmp::type_pack<tplmp::_size_t<_Dims>...> dim_t;
+
+	template<size_t ... _OuterDims>
+	struct higher_order
+	{
+		typedef typename higher_order_tensortpl<tensor, data_type, dim_t, _OuterDims...>::type type;
+	};
+
+	/**
+	 * @brief 去除前_RmOrders个维度后剩余的维度的张量类型
+	 */
+	template<size_t _RmOrders, typename _DataType = _T>
+	struct lower_order
+	{
+		typedef typename lower_order_tensortpl<tensor, _DataType, dim_t, _RmOrders>::type type;
+	};
+
+	typedef typename lower_order<1>::type comp_type;
+
+	template<size_t _Length>
+	struct slice_type
+	{
+		//生成{_Length, _Dims...}的索引，即0, 2, 3, ..., sizeof...(_Dims)
+		typedef typename tensortpl_of_dims<tensor, _T,
+				typename tplmp::index_sequence_t<size_t, 2, sizeof...(_Dims) - 1>::prepend‌<tplmp::_size_t<0> >::type,
+				_Length, _Dims...>::type type;
+	};
+
+	comp_type comp[outmost_dim];
+
+	/**
+	 * @brief 包装为1维高阶张量
+	 */
+	inline operator typename higher_order<1>::type&()
+	{
+		return *(typename higher_order<1>::type*)this;
+	}
+
+	inline operator const typename higher_order<1>::type&() const
+	{
+		return *(const typename higher_order<1>::type*)this;
+	}
 
 	inline comp_type& operator[](size_t i)
 	{
@@ -292,27 +430,27 @@ struct tensor<_T, _Dim, _Dims...>
 	 * 切片，区间为[begin, begin + _Length)
 	 */
 	template<size_t _Length>
-	inline tensor<_T, _Length, _Dims...>& slice(size_t begin)
+	inline typename slice_type<_Length>::type& slice(size_t begin)
 	{
-		return *(tensor<_T, _Length, _Dims...>*)(comp + begin);
+		return *(typename slice_type<_Length>::type*)(comp + begin);
 	}
 
 	template<size_t _Length>
-	inline const tensor<_T, _Length, _Dims...>& slice(size_t begin) const
+	inline const typename slice_type<_Length>::type& slice(size_t begin) const
 	{
-		return *(const tensor<_T, _Length, _Dims...>*)(comp + begin);
+		return *(typename slice_type<_Length>::type*)(comp + begin);
 	}
 
 	/**
 	 * 类型强制转换
 	 */
 	template<typename _T2>
-	inline operator tensor<_T2, _Dim, _Dims...>() const
+	inline operator tensor<_T2, _Dims...>() const
 	{
-		typedef tensor<_T2, _Dim, _Dims...> result_type;
+		typedef tensor<_T2, _Dims...> result_type;
 		result_type T;
 		__tensor_loop_unroll__()
-		for(size_t i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < outmost_dim; ++i)
 			T.comp[i] = (typename result_type::comp_type)comp[i];
 		return T;
 	}
@@ -321,10 +459,10 @@ struct tensor<_T, _Dim, _Dims...>
 	 * 强制转换赋值
 	 */
 	template<typename _T2>
-	inline type& operator=(const tensor<_T2, _Dim, _Dims...>& T)
+	inline type& operator=(const tensor<_T2, _Dims...>& T)
 	{
 		__tensor_loop_unroll__()
-		for(size_t i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < outmost_dim; ++i)
 			comp[i] = (comp_type)(T.comp[i]);
 		return *this;
 	}
@@ -333,12 +471,12 @@ struct tensor<_T, _Dim, _Dims...>
 	 * 按位加法
 	 */
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() + tplmp::decl<_T2>::val())>
-	inline tensor<_Result, _Dim, _Dims...> operator+(const tensor<_T2, _Dim, _Dims...>& rhs) const
+	inline tensor<_Result, _Dims...> operator+(const tensor<_T2, _Dims...>& rhs) const
 	{
-		typedef tensor<_Result, _Dim, _Dims...> result_type;
+		typedef tensor<_Result, _Dims...> result_type;
 		result_type T;
 		__tensor_loop_unroll__()
-		for(size_t i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < outmost_dim; ++i)
 			T.comp[i] = (typename result_type::comp_type)(comp[i] + rhs.comp[i]);
 		return T;
 	}
@@ -347,12 +485,12 @@ struct tensor<_T, _Dim, _Dims...>
 	 * 按位减法
 	 */
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() - tplmp::decl<_T2>::val())>
-	inline tensor<_Result, _Dim, _Dims...> operator-(const tensor<_T2, _Dim, _Dims...>& rhs) const
+	inline tensor<_Result, _Dims...> operator-(const tensor<_T2, _Dims...>& rhs) const
 	{
-		typedef tensor<_Result, _Dim, _Dims...> result_type;
+		typedef tensor<_Result, _Dims...> result_type;
 		result_type T;
 		__tensor_loop_unroll__()
-		for(size_t i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < outmost_dim; ++i)
 			T.comp[i] = (typename result_type::comp_type)(comp[i] - rhs.comp[i]);
 		return T;
 	}
@@ -361,43 +499,43 @@ struct tensor<_T, _Dim, _Dims...>
 	{
 		type T;
 		__tensor_loop_unroll__()
-		for(size_t i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < outmost_dim; ++i)
 			T.comp[i] = -comp[i];
 		return T;
 	}
 
 	template<typename _T2>
-	inline type& operator+=(const tensor<_T2, _Dim, _Dims...>& rhs)
+	inline type& operator+=(const tensor<_T2, _Dims...>& rhs)
 	{
 		__tensor_loop_unroll__()
-		for(size_t i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < outmost_dim; ++i)
 			comp[i] += rhs.comp[i];
 		return *this;
 	}
 
 	template<typename _T2>
-	inline type& operator-=(const tensor<_T2, _Dim, _Dims...>& rhs)
+	inline type& operator-=(const tensor<_T2, _Dims...>& rhs)
 	{
 		__tensor_loop_unroll__()
-		for(size_t i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < outmost_dim; ++i)
 			comp[i] -= rhs.comp[i];
 		return *this;
 	}
 
 	template<typename _T2>
-	inline type& operator*=(const scalar<_T2>& rhs)
+	inline type& operator*=(const tensor<_T2>& rhs)
 	{
 		__tensor_loop_unroll__()
-		for(size_t i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < outmost_dim; ++i)
 			comp[i] *= rhs.comp;
 		return *this;
 	}
 
 	template<typename _T2>
-	inline type& operator/=(const scalar<_T2>& rhs)
+	inline type& operator/=(const tensor<_T2>& rhs)
 	{
 		__tensor_loop_unroll__()
-		for(size_t i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < outmost_dim; ++i)
 			comp[i] /= rhs.comp;
 		return *this;
 	}
@@ -406,7 +544,7 @@ struct tensor<_T, _Dim, _Dims...>
 	inline type& operator*=(const _T2& rhs)
 	{
 		__tensor_loop_unroll__()
-		for(size_t i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < outmost_dim; ++i)
 			comp[i] *= rhs;
 		return *this;
 	}
@@ -415,7 +553,7 @@ struct tensor<_T, _Dim, _Dims...>
 	inline type& operator/=(const _T2& rhs)
 	{
 		__tensor_loop_unroll__()
-		for(size_t i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < outmost_dim; ++i)
 			comp[i] /= rhs;
 		return *this;
 	}
@@ -424,11 +562,11 @@ struct tensor<_T, _Dim, _Dims...>
 	 * @brief Frobenius内积
 	 */
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T2>::val())>
-	inline _Result operator*(const tensor<_T2, _Dim, _Dims...>& rhs) const
+	inline _Result operator*(const tensor<_T2, _Dims...>& rhs) const
 	{
 		_Result s(0);
 		__tensor_loop_unroll__()
-		for(size_t i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < outmost_dim; ++i)
 			s += (comp[i] * rhs.comp[i]);
 		return s;
 	}
@@ -437,12 +575,12 @@ struct tensor<_T, _Dim, _Dims...>
 	 * @brief 按位除法，同哈达玛积
 	 */
 	template<typename _T2, typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T2>::val())>
-	inline tensor<_Result, _Dim, _Dims...> operator/(const tensor<_T2, _Dim, _Dims...>& rhs) const
+	inline tensor<_Result, _Dims...> operator/(const tensor<_T2, _Dims...>& rhs) const
 	{
-		typedef tensor<_Result, _Dim, _Dims...> result_type;
+		typedef tensor<_Result, _Dims...> result_type;
 		result_type T;
 		__tensor_loop_unroll__()
-		for(size_t i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < outmost_dim; ++i)
 			T[i] = (typename result_type::comp_type)(comp[i] / rhs.comp[i]);
 		return T;
 	}
@@ -454,7 +592,7 @@ struct tensor<_T, _Dim, _Dims...>
 	{
 		type T;
 		__tensor_loop_unroll__()
-		for(size_t i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < outmost_dim; ++i)
 			T.comp[i] = comp_type::all(value);
 		return T;
 	}
@@ -473,120 +611,138 @@ struct tensor<_T, _Dim, _Dims...>
 	 * 该方向单位张量
 	 */
 	template<typename _Result = decltype(tplmp::decl<_T>::val() / tplmp::decl<_T>::val())>
-	inline tensor<_Result, _Dim, _Dims...> unit() const;
+	inline tensor<_Result, _Dims...> unit() const;
 };
 
-struct __tensor_comp_impl
-{
-	template<typename _T, size_t _Dim, size_t ..._Dims>
-	inline constexpr auto value(const tensor<_T, _Dim, _Dims...>& T, size_t idx) -> decltype(T[idx])
-	{
-		return T[idx];
-	}
-
-	template<typename _T, size_t _Dim, size_t ..._Dims>
-	inline constexpr auto value(const tensor<_T, _Dim, _Dims...>& T, size_t idx, size_t ...rest_idxs) -> decltype(T[idx])
-	{
-		return value(T[idx], rest_idxs...);
-	}
-};
-
-template<typename _T, size_t ..._Dims>
-inline constexpr auto tensor_comp(const tensor<_T, _Dims...>& T, size_t ...idxs) -> decltype(__tensor_comp_impl::value(T, idxs))
-{
-	return __tensor_comp_impl::value(T, idxs);
-}
+template<typename T, size_t ... Dims>
+constexpr size_t tensor<T, Dims...>::dim[tensor<T, Dims...>::order] = {Dims...};
 
 /**
  * 标量乘法
  */
-template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val()), size_t _Dim, size_t ..._Dims>
-inline tensor<_Result, _Dim, _Dims...> operator*(const _T1& lhs, const tensor<_T2, _Dim, _Dims...>& rhs)
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val()), size_t ..._Dims>
+inline tensor<_Result, _Dims...> operator*(const _T1& lhs, const tensor<_T2, _Dims...>& rhs)
 {
-	typedef tensor<_Result, _Dim, _Dims...> result_type;
+	typedef tensor<_Result, _Dims...> result_type;
 	result_type T;
 	__tensor_loop_unroll__()
-	for(size_t i = 0; i < _Dim; ++i)
+	for(size_t i = 0; i < result_type::outmost_dim; ++i)
 		T.comp[i] = (typename result_type::comp_type)(lhs * rhs.comp[i]);
 	return T;
 }
 
-template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val()), size_t _Dim, size_t ..._Dims>
-inline tensor<_Result, _Dim, _Dims...> operator*(const tensor<_T1, _Dim, _Dims...>& lhs, const _T2& rhs)
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val()), size_t ..._Dims>
+inline tensor<_Result, _Dims...> operator*(const tensor<_T1, _Dims...>& lhs, const _T2& rhs)
 {
-	typedef tensor<_Result, _Dim, _Dims...> result_type;
+	typedef tensor<_Result, _Dims...> result_type;
 	result_type T;
 	__tensor_loop_unroll__()
-	for(size_t i = 0; i < _Dim; ++i)
+	for(size_t i = 0; i < result_type::outmost_dim; ++i)
 		T.comp[i] = (typename result_type::comp_type)(lhs.comp[i] * rhs);
 	return T;
 }
 
-template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val()), size_t _Dim, size_t ..._Dims>
-inline tensor<_Result, _Dim, _Dims...> operator*(const scalar<_T1>& lhs, const tensor<_T2, _Dim, _Dims...>& rhs)
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val()), size_t ..._Dims>
+inline tensor<_Result, _Dims...> operator*(const tensor<_T1>& lhs, const tensor<_T2, _Dims...>& rhs)
 {
-	typedef tensor<_Result, _Dim, _Dims...> result_type;
+	typedef tensor<_Result, _Dims...> result_type;
 	result_type T;
 	__tensor_loop_unroll__()
-	for(size_t i = 0; i < _Dim; ++i)
+	for(size_t i = 0; i < result_type::outmost_dim; ++i)
 		T.comp[i] = (typename result_type::comp_type)(lhs.comp * rhs.comp[i]);
 	return T;
 }
 
-template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val()), size_t _Dim, size_t ..._Dims>
-inline tensor<_Result, _Dim, _Dims...> operator*(const tensor<_T1, _Dim, _Dims...>& lhs, const scalar<_T2>& rhs)
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val()), size_t ..._Dims>
+inline tensor<_Result, _Dims...> operator*(const tensor<_T1, _Dims...>& lhs, const tensor<_T2>& rhs)
 {
-	typedef tensor<_Result, _Dim, _Dims...> result_type;
+	typedef tensor<_Result, _Dims...> result_type;
 	result_type T;
 	__tensor_loop_unroll__()
-	for(size_t i = 0; i < _Dim; ++i)
+	for(size_t i = 0; i < result_type::outmost_dim; ++i)
 		T.comp[i] = (typename result_type::comp_type)(lhs.comp[i] * rhs.comp);
 	return T;
 }
 
 /**
+ * @brief 矩阵乘法
+ */
+template<typename _T, size_t _Row, size_t _Column1, size_t _Column2>
+inline tensor<_T, _Row, _Column2> operator*(const tensor<_T, _Row, _Column1>& lhs, const tensor<_T, _Column1, _Column2>& rhs)
+{
+	tensor<_T, _Row, _Column2> A;
+	for(size_t i = 0; i < _Row; ++i)
+	{
+		for(size_t j = 0; j < _Column2; ++j)
+		{
+			_T sum(0);
+			for(size_t k = 0; k < _Column1; ++k)
+			{
+				sum += lhs.comp[i][k] * rhs.comp[k][j];
+			}
+			A.comp[i][j] = sum;
+		}
+	}
+	return A;
+}
+
+/**
+ * @brief 矩阵*向量
+ */
+template<typename _T, size_t _Row, size_t _Column>
+inline tensor<_T, _Row> operator*(const tensor<_T, _Row, _Column>& A, const tensor<_T, _Column>& x)
+{
+	tensor<_T, _Row> v;
+	for(size_t i = 0; i < _Row; ++i)
+	{
+		v.comp[i] = A.comp[i] * x;
+	}
+	return v;
+}
+
+/**
  * 标量除法
  */
-template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val()), size_t _Dim, size_t ..._Dims>
-inline tensor<_Result, _Dim, _Dims...> operator/(const tensor<_T1, _Dim, _Dims...>& lhs, const _T2& rhs)
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val()), size_t ..._Dims>
+inline tensor<_Result, _Dims...> operator/(const tensor<_T1, _Dims...>& lhs, const _T2& rhs)
 {
-	typedef tensor<_Result, _Dim, _Dims...> result_type;
+	typedef tensor<_Result, _Dims...> result_type;
 	result_type T;
 	__tensor_loop_unroll__()
-	for(size_t i = 0; i < _Dim; ++i)
+	for(size_t i = 0; i < result_type::outmost_dim; ++i)
 		T.comp[i] = (typename result_type::comp_type)(lhs.comp[i] / rhs);
 	return T;
 }
 
-template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val()), size_t _Dim, size_t ..._Dims>
-inline tensor<_Result, _Dim, _Dims...> operator/(const _T1& lhs, const tensor<_T2, _Dim, _Dims...>& rhs)
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val()), size_t ..._Dims>
+inline tensor<_Result, _Dims...> operator/(const _T1& lhs, const tensor<_T2, _Dims...>& rhs)
 {
-	typedef tensor<_Result, _Dim, _Dims...> result_type;
+	typedef tensor<_Result, _Dims...> result_type;
 	result_type T;
 	__tensor_loop_unroll__()
-	for(size_t i = 0; i < _Dim; ++i)
+	for(size_t i = 0; i < result_type::outmost_dim; ++i)
 		T.comp[i] = (typename result_type::comp_type)(lhs / rhs.comp[i]);
 	return T;
 }
 
-template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val()), size_t _Dim, size_t ..._Dims>
-inline tensor<_Result, _Dim, _Dims...> operator/(const tensor<_T1, _Dim, _Dims...>& lhs, const scalar<_T2>& rhs)
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val()), size_t ..._Dims>
+inline tensor<_Result, _Dims...> operator/(const tensor<_T1, _Dims...>& lhs, const tensor<_T2>& rhs)
 {
-	typedef tensor<_Result, _Dim, _Dims...> result_type;
+	typedef tensor<_Result, _Dims...> result_type;
 	result_type T;
 	__tensor_loop_unroll__()
-	for(size_t i = 0; i < _Dim; ++i)
+	for(size_t i = 0; i < result_type::outmost_dim; ++i)
 		T.comp[i] = (typename result_type::comp_type)(lhs.comp[i] / rhs.comp);
 	return T;
 }
 
-template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val()), size_t _Dim, size_t ..._Dims>
-inline tensor<_Result, _Dim, _Dims...> operator/(const scalar<_T1>& lhs, const tensor<_T2, _Dim, _Dims...>& rhs)
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() / tplmp::decl<_T2>::val()), size_t ..._Dims>
+inline tensor<_Result, _Dims...> operator/(const tensor<_T1>& lhs, const tensor<_T2, _Dims...>& rhs)
 {
-	typedef tensor<_Result, _Dim, _Dims...> result_type;
+	typedef tensor<_Result, _Dims...> result_type;
 	result_type T;
 	__tensor_loop_unroll__()
-	for(size_t i = 0; i < _Dim; ++i)
+	for(size_t i = 0; i < result_type::outmost_dim; ++i)
 		T.comp[i] = (typename result_type::comp_type)(lhs.comp / rhs.comp[i]);
 	return T;
 }
@@ -594,22 +750,22 @@ inline tensor<_Result, _Dim, _Dims...> operator/(const scalar<_T1>& lhs, const t
 /**
  * 按位相乘
  */
-template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val()), size_t _Dim, size_t ..._Dims>
-inline tensor<_Result, _Dim, _Dims...> hadamard(const tensor<_T1, _Dim, _Dims...>& lhs, const tensor<_T2, _Dim, _Dims...>& rhs)
+template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val()), size_t ..._Dims>
+inline tensor<_Result, _Dims...> hadamard(const tensor<_T1, _Dims...>& lhs, const tensor<_T2, _Dims...>& rhs)
 {
-	typedef tensor<_Result, _Dim, _Dims...> result_type;
+	typedef tensor<_Result, _Dims...> result_type;
 	result_type T;
 	__tensor_loop_unroll__()
-	for(size_t i = 0; i < _Dim; ++i)
+	for(size_t i = 0; i < result_type::outmost_dim; ++i)
 		T.comp[i] = (typename result_type::comp_type)(lhs.comp[i] * rhs.comp[i]);
 	return T;
 }
 
 //加法恒等元
-template<typename _T, size_t _Dim, size_t ..._Dims>
-struct __identity_impl<tensor<_T, _Dim, _Dims...>, add>
+template<typename _T, size_t ..._Dims>
+struct __identity_impl<tensor<_T, _Dims...>, add>
 {
-	typedef tensor<_T, _Dim, _Dims...> type;
+	typedef tensor<_T, _Dims...> type;
 
 	inline static type value()
 	{
@@ -618,10 +774,10 @@ struct __identity_impl<tensor<_T, _Dim, _Dims...>, add>
 };
 
 //基
-template<typename _T, size_t _Dim, size_t ..._Dims>
-struct __basis_impl<tensor<_T, _Dim, _Dims...> >
+template<typename _T, size_t ..._Dims>
+struct __basis_impl<tensor<_T, _Dims...> >
 {
-	typedef tensor<_T, _Dim, _Dims...> type;
+	typedef tensor<_T, _Dims...> type;
 
 	inline static type value(size_t i)
 	{
@@ -635,7 +791,7 @@ struct __basis_impl<tensor<_T, _Dim, _Dims...> >
  * 2维向量叉乘
  */
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
-inline _Result operator^(const vector<_T1, 2>& lhs, const vector<_T2, 2>& rhs)
+inline _Result operator^(const tensor<_T1, 2>& lhs, const tensor<_T2, 2>& rhs)
 {
 	return lhs.comp[0] * rhs.comp[1] - lhs.comp[1] * rhs.comp[0];
 }
@@ -644,7 +800,7 @@ inline _Result operator^(const vector<_T1, 2>& lhs, const vector<_T2, 2>& rhs)
  * 3维向量叉乘
  */
 template<typename _T1, typename _T2, typename _Result = decltype(tplmp::decl<_T1>::val() * tplmp::decl<_T2>::val())>
-inline vector<_Result, 3> operator^(const vector<_T1, 3>& lhs, const vector<_T2, 3>& rhs)
+inline vector<_Result, 3> operator^(const tensor<_T1, 3>& lhs, const tensor<_T2, 3>& rhs)
 {
 	return
 	{	lhs.comp[1] * rhs.comp[2] - lhs.comp[2] * rhs.comp[1],
@@ -653,7 +809,7 @@ inline vector<_Result, 3> operator^(const vector<_T1, 3>& lhs, const vector<_T2,
 }
 
 template<typename _T, size_t _Dim1, size_t _Dim2>
-inline vector<_T, _Dim1 + _Dim2> cat(const vector<_T, _Dim1>& lhs, const vector<_T, _Dim2>& rhs)
+inline vector<_T, _Dim1 + _Dim2> cat(const tensor<_T, _Dim1>& lhs, const tensor<_T, _Dim2>& rhs)
 {
 	vector<_T, _Dim1 + _Dim2> T;
 	*(vector<_T, _Dim1>*)T.comp = lhs;
@@ -662,19 +818,19 @@ inline vector<_T, _Dim1 + _Dim2> cat(const vector<_T, _Dim1>& lhs, const vector<
 }
 
 template<typename _T, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
-inline _Result det(const matrix<_T, 1, 1>& A)
+inline _Result det(const tensor<_T, 1, 1>& A)
 {
 	return A.comp[0][0];
 }
 
 template<typename _T, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
-inline _Result det(const matrix<_T, 2, 2>& A)
+inline _Result det(const tensor<_T, 2, 2>& A)
 {
 	return A.comp[0][0] * A.comp[1][1] - A.comp[0][1] * A.comp[1][0];
 }
 
 template<typename _T, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
-inline _Result det(const matrix<_T, 3, 3>& A)
+inline _Result det(const tensor<_T, 3, 3>& A)
 {
 	return A.comp[0][0] * (A.comp[1][1] * A.comp[2][2] - A.comp[1][2] * A.comp[2][1])
 			+ A.comp[0][1] * (A.comp[1][2] * A.comp[2][0] - A.comp[1][0] * A.comp[2][2])
@@ -682,7 +838,7 @@ inline _Result det(const matrix<_T, 3, 3>& A)
 }
 
 template<typename _T, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
-inline _Result det(const matrix<_T, 4, 4>& A)
+inline _Result det(const tensor<_T, 4, 4>& A)
 {
 	return A.comp[0][0] * (A.comp[1][1] * A.comp[2][2] * A.comp[3][3] - A.comp[3][1] * A.comp[2][2] * A.comp[1][3])
 			+ A.comp[0][1] * (A.comp[1][2] * A.comp[2][3] * A.comp[3][0] - A.comp[1][0] * A.comp[2][3] * A.comp[3][2])
@@ -696,7 +852,7 @@ inline _Result det(const matrix<_T, 4, 4>& A)
  * 如果找到则返回行索引，未找到（全0）则返回_Row
  */
 template<typename _T, size_t _Row, size_t _Column>
-size_t partial_pivot_row(const matrix<_T, _Row, _Column>& A, size_t i, size_t j, _T eps)
+size_t partial_pivot_row(const tensor<_T, _Row, _Column>& A, size_t i, size_t j, _T eps)
 {
 	size_t pivot_row = _Row;
 	_T max_abs = _T(0);
@@ -720,7 +876,7 @@ size_t partial_pivot_row(const matrix<_T, _Row, _Column>& A, size_t i, size_t j,
  * 如果找到则返回行索引和列索引，未找到则返回row。
  */
 template<typename _T, size_t _Row, size_t _Column>
-vector<size_t, 2> complete_pivot_comp(const matrix<_T, _Row, _Column>& A, size_t i, size_t j, _T eps)
+vector<size_t, 2> complete_pivot_comp(const tensor<_T, _Row, _Column>& A, size_t i, size_t j, _T eps)
 {
 	vector<size_t, 2> pivot_comp = {_Row, _Column};
 	_T max_abs = _T(0);
@@ -748,7 +904,7 @@ vector<size_t, 2> complete_pivot_comp(const matrix<_T, _Row, _Column>& A, size_t
  * 交换本矩阵的行
  */
 template<typename _T, size_t _Row, size_t _Column>
-inline matrix<_T, _Row, _Column> swap_row(const matrix<_T, _Row, _Column>& A, size_t row1, size_t row2)
+inline matrix<_T, _Row, _Column> swap_row(const tensor<_T, _Row, _Column>& A, size_t row1, size_t row2)
 {
 	vector<_T, _Column> temp = A.comp[row1];
 	A.comp[row1] = A.comp[row2];
@@ -760,7 +916,7 @@ inline matrix<_T, _Row, _Column> swap_row(const matrix<_T, _Row, _Column>& A, si
  * 交换本矩阵的列
  */
 template<typename _T, size_t _Row, size_t _Column>
-inline matrix<_T, _Row, _Column> swap_column(const matrix<_T, _Row, _Column>& A, size_t column1, size_t column2)
+inline matrix<_T, _Row, _Column> swap_column(const tensor<_T, _Row, _Column>& A, size_t column1, size_t column2)
 {
 	__tensor_loop_unroll__()
 	for(size_t i = 0; i < _Row; ++i)
@@ -776,7 +932,7 @@ inline matrix<_T, _Row, _Column> swap_column(const matrix<_T, _Row, _Column>& A,
  * 矩阵分块，分块区间为[_BeginRow, _EndRow)，[_BeginColumn, _EndColumn)
  */
 template<size_t _PartitionRow, size_t _PartitionColumn, typename _T, size_t _Row, size_t _Column>
-inline matrix<_T, _PartitionRow, _PartitionColumn> partition(const matrix<_T, _Row, _Column>& A, size_t row_begin, size_t column_begin)
+inline matrix<_T, _PartitionRow, _PartitionColumn> partition(const tensor<_T, _Row, _Column>& A, size_t row_begin, size_t column_begin)
 {
 	static_assert(_PartitionRow >= 0 && _PartitionColumn >= 0, "invalid partition size");
 	matrix<_T, _PartitionRow, _PartitionColumn> partition_result;
@@ -789,31 +945,31 @@ inline matrix<_T, _PartitionRow, _PartitionColumn> partition(const matrix<_T, _R
 }
 
 template<typename _T, size_t _Row, size_t _Column1, size_t _Column2>
-inline matrix<_T, _Row, _Column1 + _Column2> cat_column(const matrix<_T, _Row, _Column1>& mat1, const matrix<_T, _Row, _Column2>& mat2)
+inline matrix<_T, _Row, _Column1 + _Column2> cat_column(const tensor<_T, _Row, _Column1>& A1, const tensor<_T, _Row, _Column2>& A2)
 {
-	matrix<_T, _Row, _Column1 + _Column2> mat;
+	matrix<_T, _Row, _Column1 + _Column2> A;
 	__tensor_loop_unroll__()
 	for(size_t i = 0; i < _Row; ++i)
-		mat.comp[i] = cat(mat1.comp[i], mat2.comp[i]);
-	return mat;
+		A.comp[i] = cat(A1.comp[i], A2.comp[i]);
+	return A;
 }
 
 /**
  * @brief 4个分块矩阵拼接
  */
 template<typename _T, size_t _Row1, size_t _Column1, size_t _Row2, size_t _Column2>
-inline matrix<_T, _Row1 + _Row2, _Column1 + _Column2> cat(const matrix<_T, _Row1, _Column1>& left_up, const matrix<_T, _Row1, _Column2>& right_up, const matrix<_T, _Row2, _Column1>& left_down, const matrix<_T, _Row2, _Column2>& right_down)
+inline matrix<_T, _Row1 + _Row2, _Column1 + _Column2> cat(const tensor<_T, _Row1, _Column1>& left_up, const tensor<_T, _Row1, _Column2>& right_up, const tensor<_T, _Row2, _Column1>& left_down, const tensor<_T, _Row2, _Column2>& right_down)
 {
 	constexpr size_t cat_row = _Row1 + _Row2;
 	constexpr size_t cat_column = _Column1 + _Column2;
-	matrix<_T, cat_row, cat_column> mat;
+	matrix<_T, cat_row, cat_column> A;
 	__tensor_loop_unroll__()
 	for(size_t i = 0; i < _Row1; ++i)
-		mat.comp[i] = cat(left_up.comp[i], right_up.comp[i]);
+		A.comp[i] = cat(left_up.comp[i], right_up.comp[i]);
 	__tensor_loop_unroll__()
 	for(size_t i = _Row1; i < cat_row; ++i)
-		mat.comp[i] = cat(left_down.comp[i], right_down.comp[i]);
-	return mat;
+		A.comp[i] = cat(left_down.comp[i], right_down.comp[i]);
+	return A;
 }
 
 /**
@@ -821,12 +977,12 @@ inline matrix<_T, _Row1 + _Row2, _Column1 + _Column2> cat(const matrix<_T, _Row1
  * 列主元高斯消元法计算
  */
 template<typename _T, size_t _Row, size_t _Column, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
-matrix<_Result, _Row, _Column> ref(const matrix<_T, _Row, _Column>& mat, _T eps, size_t* mat_rank = nullptr, size_t* swap_count = nullptr)
+matrix<_Result, _Row, _Column> ref(const tensor<_T, _Row, _Column>& A, _T eps, size_t* mat_rank = nullptr, size_t* swap_count = nullptr)
 {
 	if(swap_count)
 		*swap_count = 0;
 	size_t rank = 0; //当前有主元的行数，即秩
-	matrix<_Result, _Row, _Column> ref = mat;
+	matrix<_Result, _Row, _Column> ref = A;
 	for(size_t current_column = 0; current_column < _Column && rank < _Row; ++current_column)
 	{
 		//找列主元
@@ -863,7 +1019,7 @@ matrix<_Result, _Row, _Column> ref(const matrix<_T, _Row, _Column>& mat, _T eps,
  * 		  即在已经矩阵A、向量b的情况下，求满足Ax=b的x向量
  */
 template<typename _T, size_t _Order, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
-vector<_Result, _Order> solve_linear_system(const matrix<_T, _Order, _Order>& coeff_mat, const vector<_T, _Order>& vals, bool* success, _T eps = 0)
+vector<_Result, _Order> solve_linear_system(const tensor<_T, _Order, _Order>& coeff_mat, const tensor<_T, _Order>& vals, bool* success, _T eps = 0)
 {
 	//将系数矩阵和值向量横向拼接成增广矩阵
 	matrix<_T, _Order, _Order + 1> augmented;
@@ -913,9 +1069,9 @@ vector<_Result, _Order> solve_linear_system(const matrix<_T, _Order, _Order>& co
  * 相对于ref()的优化
  */
 template<typename _T, size_t _Row, size_t _Column, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
-size_t rank(const matrix<_T, _Row, _Column>& mat, _T eps = 0)
+size_t rank(const tensor<_T, _Row, _Column>& A, _T eps = 0)
 {
-	matrix<_Result, _Row, _Column> ref = mat;
+	matrix<_Result, _Row, _Column> ref = A;
 	size_t rank = 0;
 	for(size_t current_column = 0; current_column < _Column; ++current_column)
 	{
@@ -947,9 +1103,9 @@ size_t rank(const matrix<_T, _Row, _Column>& mat, _T eps = 0)
  * 相对于ref()的优化
  */
 template<typename _T, size_t _Order, typename _Result = decltype(tplmp::decl<_T>::val() * tplmp::decl<_T>::val())>
-_Result det(const matrix<_T, _Order, _Order>& mat, _T eps = 0)
+_Result det(const tensor<_T, _Order, _Order>& A, _T eps = 0)
 {
-	matrix<_T, _Order, _Order> temp = mat;
+	matrix<_T, _Order, _Order> temp = A;
 	_Result det = _Result(1);
 	for(size_t i = 0; i < _Order; ++i)
 	{
@@ -990,12 +1146,12 @@ _Result det(const matrix<_T, _Order, _Order>& mat, _T eps = 0)
  * 迹
  */
 template<typename _T, size_t _Order, typename _Result = decltype(tplmp::decl<_T>::val() + tplmp::decl<_T>::val())>
-inline _Result tr(const matrix<_T, _Order, _Order>& mat)
+inline _Result tr(const tensor<_T, _Order, _Order>& A)
 {
 	_Result tr = 0;
 	__tensor_loop_unroll__()
 	for(size_t i = 0; i < _Order; ++i)
-		tr += mat.comp[i][i];
+		tr += A.comp[i][i];
 	return tr;
 }
 
@@ -1019,11 +1175,11 @@ struct __identity_impl<matrix<_T, _Order, _Order>, mul>
 
 /*
  template<typename _T, typename _Result = decltype(tplmp::decl<_T>::val() + tplmp::decl<_T>::val()), size_t ..._Dims>
- inline _Result contract(const tensor<_T1, _Dim, _Dims...>& lhs, const tensor<_T2, _Dim, _Dims...>& rhs)
+ inline _Result contract(const tensor<_T1, _Dims...>& lhs, const tensor<_T2, _Dims...>& rhs)
  {
  _T result(0);
  __tensor_loop_unroll__()
- for(size_t i = 0; i < _Dim; ++i)
+ for(size_t i = 0; i < outmost_dim; ++i)
  result += comp[i];
  return result;
  }
@@ -1041,11 +1197,11 @@ inline _Result frobenius_norm(const tensor<_T, Dims...>& T)
 /**
  * 单位张量
  */
-template<typename _T, size_t _Dim, size_t ..._Dims>
+template<typename _T, size_t ..._Dims>
 template<typename _Result>
-inline tensor<_Result, _Dim, _Dims...> tensor<_T, _Dim, _Dims...>::unit() const
+inline tensor<_Result, _Dims...> tensor<_T, _Dims...>::unit() const
 {
-	return operator/<_T, _T, _Result, _Dim, _Dims...>(*this, frobenius_norm<_T, _Result>(*this));
+	return operator/<_T, _T, _Result, _Dims...>(*this, frobenius_norm<_T, _Result>(*this));
 }
 
 /**
@@ -1105,29 +1261,32 @@ inline std::ostream& operator<<(std::ostream& os, const tensor<_T, _Dims...>& T)
 /**
  * @brief 张量子视图，可以直接在其上进行读写
  */
-template<typename _T, size_t _Dim, size_t ..._Dims>
+template<typename _T, size_t ..._Dims>
 class tensor_view
 {
 protected:
 	_T* comp = nullptr;
 
 public:
-	typedef tensor<_T, _Dim, _Dims...> type;
-	typedef _T data_type;
-	typedef tensor<_T, _Dims...> comp_type;
-	typedef tensor_view<_T, _Dim, _Dims...> view_type;
+	typedef typename tensor<_T, _Dims...>::type type;
+	typedef tensor_view<_T, _Dims...> view_type;
+
+	typedef typename tensor<_T, _Dims...>::data_type data_type;
+	typedef typename tensor<_T, _Dims...>::comp_type comp_type;
 
 	static const size_t order = type::oder;
 	static constexpr size_t dim[order] = type::dim;
 
+	static constexpr size_t outmost_dim = type::outmost_dim;
+
 	tensor_view() = default;
 
-	template<size_t _Dim2, size_t ..._Dims2>
-	tensor_view(tensor<_T, _Dim2, _Dims2...>& target, size_t row_begin, size_t column_begin)
+	template<size_t ..._Dims2>
+	tensor_view(tensor<_T, _Dims2...>& target, size_t row_begin, size_t column_begin)
 	{
-		static_assert(_Dim2 >= _Dim && sizeof...(_Dims) == sizeof...(_Dims2), "matrix view dim should be less than target");
+		static_assert(tensor<_T, _Dims2...>::outmost_dim >= outmost_dim && sizeof...(_Dims) == sizeof...(_Dims2), "tensor view dim should be less than target");
 		__tensor_loop_unroll__()
-		for(size_t i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < outmost_dim; ++i)
 		{
 			//必须确保column_begin+_Column<=_Column2
 			comp[i] = target.comp[row_begin + i].comp + column_begin;
@@ -1135,10 +1294,10 @@ public:
 	}
 
 	template<typename _T2>
-	inline view_type& operator=(const tensor<_T2, _Dim, _Dims...>& T)
+	inline view_type& operator=(const tensor<_T2, _Dims...>& T)
 	{
 		__tensor_loop_unroll__()
-		for(size_t i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < outmost_dim; ++i)
 			*(comp_type*)comp[i] = T.comp[i];
 		return *this;
 	}
@@ -1146,11 +1305,18 @@ public:
 	inline operator type() const
 	{
 		type T;
-		for(size_t i = 0; i < _Dim; ++i)
+		for(size_t i = 0; i < outmost_dim; ++i)
 			T.comp[i] = *(comp_type*)comp[i];
 		return T;
 	}
 };
+
+template<size_t ..._Dims>
+using tensorf = tensor<float, _Dims...>;
+template<size_t ..._Dims>
+using tensord = tensor<double, _Dims...>;
+template<size_t ..._Dims>
+using tensorq = tensor<__float128, _Dims...>;
 
 template<typename _T>
 using vector1 = vector<_T, 1>;
